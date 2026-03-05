@@ -13,9 +13,10 @@ interface Contact {
   type: 'human' | 'ai'
   model?: string
   status: 'online' | 'offline' | 'active'
+  isPrimary?: boolean
 }
 
-const AVATARS = ['🤖', '🧠', '⚡', '🔥', '🪼', '💭', '🦾', '🎯', '🛡️', '🔮', '🌟', '🐙']
+const AVATARS = ['🤖', '🧠', '⚡', '🔥', '🪼', '💭', '🦾', '🎯', '🛡️', '🔮', '🌟', '🐙', '👨‍💻', '👤']
 
 export default function PeoplePage() {
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -173,7 +174,7 @@ export default function PeoplePage() {
         {filtered.map((c) => (
           <div key={c.id} className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 hover:bg-[var(--bg-hover)] transition group relative">
             {/* Delete button */}
-            {c.id !== 'david' && c.id !== 'patrick' && (
+            {!c.isPrimary && (
               <button
                 onClick={() => handleDelete(c.id)}
                 disabled={deleting === c.id}
