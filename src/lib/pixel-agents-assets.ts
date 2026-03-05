@@ -21,6 +21,39 @@ function getAssetsRoot(): string {
   return path.join(process.cwd(), 'pixel-agents', 'webview-ui', 'public')
 }
 
+const SAVED_LAYOUT_PATH = path.join(process.cwd(), 'data', 'office-layout.json')
+const HEADQUARTERS_PATH = path.join(process.cwd(), 'public', 'office-view', 'assets', 'headquarters-layout.json')
+
+/** Load saved user layout if it exists (persists across restarts) */
+export function loadSavedLayout(): Record<string, unknown> | null {
+  try {
+    if (!fs.existsSync(SAVED_LAYOUT_PATH)) return null
+    const content = fs.readFileSync(SAVED_LAYOUT_PATH, 'utf-8')
+    const parsed = JSON.parse(content) as unknown
+    if (!parsed || typeof parsed !== 'object') return null
+    const o = parsed as Record<string, unknown>
+    if (typeof o.version !== 'number' || typeof o.cols !== 'number' || typeof o.rows !== 'number' || !Array.isArray(o.tiles)) return null
+    return o
+  } catch {
+    return null
+  }
+}
+
+/** Load headquarters layout (the big office) from public assets */
+export function loadHeadquartersLayout(): Record<string, unknown> | null {
+  try {
+    if (!fs.existsSync(HEADQUARTERS_PATH)) return null
+    const content = fs.readFileSync(HEADQUARTERS_PATH, 'utf-8')
+    const parsed = JSON.parse(content) as unknown
+    if (!parsed || typeof parsed !== 'object') return null
+    const o = parsed as Record<string, unknown>
+    if (typeof o.version !== 'number' || typeof o.cols !== 'number' || typeof o.rows !== 'number' || !Array.isArray(o.tiles)) return null
+    return o
+  } catch {
+    return null
+  }
+}
+
 export function loadDefaultLayout(): Record<string, unknown> | null {
   try {
     const layoutPath = path.join(getAssetsRoot(), 'assets', 'default-layout.json')

@@ -4,7 +4,9 @@
  */
 import { NextResponse } from 'next/server'
 import {
+  loadSavedLayout,
   loadDefaultLayout,
+  loadHeadquartersLayout,
   loadWallTiles,
   loadCharacterSprites,
   loadFloorTiles,
@@ -12,11 +14,12 @@ import {
 
 export async function GET() {
   try {
-    const [layout, wallTiles, charSprites, floorTiles] = await Promise.all([
-      Promise.resolve(loadDefaultLayout()),
-      Promise.resolve(loadWallTiles()),
-      Promise.resolve(loadCharacterSprites()),
-      Promise.resolve(loadFloorTiles()),
+    // Saved layout persists. Otherwise Headquarters is the main view, then pixel-agents default
+    const layout = loadSavedLayout() ?? loadHeadquartersLayout() ?? loadDefaultLayout()
+    const [wallTiles, charSprites, floorTiles] = await Promise.all([
+      loadWallTiles(),
+      loadCharacterSprites(),
+      loadFloorTiles(),
     ])
     return NextResponse.json({
       layout: layout || null,

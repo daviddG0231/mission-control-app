@@ -57,8 +57,7 @@ function makeTileColors(grid: number[][], colorMap: Record<number, FloorColor | 
   return grid.flat().map(t => colorMap[t] ?? null)
 }
 
-// ─── Template 1: Startup Office (default-ish) ───
-const startupGrid = Array.from({ length: 11 }, (_, r) =>
+const officeGrid = Array.from({ length: 11 }, (_, r) =>
   Array.from({ length: 20 }, (_, c) => {
     if (r === 0 || r === 10 || c === 0 || c === 19) return W
     if (c === 10) return (r >= 4 && r <= 6) ? F4 : W
@@ -67,17 +66,18 @@ const startupGrid = Array.from({ length: 11 }, (_, r) =>
   })
 )
 
-const startupTemplate: OfficeTemplate = {
-  id: 'startup',
-  name: 'Startup Office',
+// ─── Template: Office (main workspace) ───
+const officeTemplate: OfficeTemplate = {
+  id: 'office',
+  name: 'Office',
   description: 'Two rooms with desks, plants, and a meeting corner',
   preview: '🏢',
   layout: {
     version: 1,
     cols: 20,
     rows: 11,
-    tiles: makeTiles(startupGrid),
-    tileColors: makeTileColors(startupGrid, { [W]: null, [F1]: WARM_BEIGE, [F2]: WARM_BROWN, [F3]: PURPLE_CARPET, [F4]: TAN_DOORWAY }),
+    tiles: makeTiles(officeGrid),
+    tileColors: makeTileColors(officeGrid, { [W]: null, [F1]: WARM_BEIGE, [F2]: WARM_BROWN, [F3]: PURPLE_CARPET, [F4]: TAN_DOORWAY }),
     furniture: [
       { uid: 'desk-left', type: 'desk', col: 4, row: 3 },
       { uid: 'desk-right', type: 'desk', col: 13, row: 3 },
@@ -156,10 +156,11 @@ const cozyGrid = Array.from({ length: 9 }, (_, r) =>
   })
 )
 
-const cozyStudioTemplate: OfficeTemplate = {
-  id: 'cozy-studio',
-  name: 'Cozy Studio',
-  description: 'Small warm studio for solo or duo work',
+// ─── Template: Home ───
+const homeTemplate: OfficeTemplate = {
+  id: 'home',
+  name: 'Home',
+  description: 'Cozy home office for solo or duo work',
   preview: '🏠',
   layout: {
     version: 1,
@@ -181,7 +182,41 @@ const cozyStudioTemplate: OfficeTemplate = {
   },
 }
 
-// ─── Template 4: Dev Lab ───
+// ─── Template: Living Room ───
+const livingRoomGrid = Array.from({ length: 10 }, (_, r) =>
+  Array.from({ length: 14 }, (_, c) => {
+    if (r === 0 || r === 9 || c === 0 || c === 13) return W
+    if (r >= 5 && r <= 8 && c >= 4 && c <= 9) return F3  // carpet area
+    return c < 7 ? F1 : F2
+  })
+)
+
+const livingRoomTemplate: OfficeTemplate = {
+  id: 'living-room',
+  name: 'Living Room',
+  description: 'Comfy lounge with sofa area and workspace corner',
+  preview: '🛋️',
+  layout: {
+    version: 1,
+    cols: 14,
+    rows: 10,
+    tiles: makeTiles(livingRoomGrid),
+    tileColors: makeTileColors(livingRoomGrid, { [W]: null, [F1]: WARM_BEIGE, [F2]: WARM_BROWN, [F3]: WARM_RED }),
+    furniture: [
+      { uid: 'plant-1', type: 'plant', col: 1, row: 1 },
+      { uid: 'plant-2', type: 'plant', col: 12, row: 1 },
+      { uid: 'bookshelf-1', type: 'bookshelf', col: 1, row: 4 },
+      { uid: 'lamp-1', type: 'lamp', col: 6, row: 6 },
+      { uid: 'cooler-1', type: 'cooler', col: 12, row: 7 },
+      { uid: 'desk-1', type: 'desk', col: 2, row: 2 },
+      { uid: 'chair-1', type: 'chair', col: 2, row: 4 },
+      { uid: 'chair-2', type: 'chair', col: 4, row: 2 },
+      { uid: 'pc-1', type: 'pc', col: 3, row: 2 },
+    ],
+  },
+}
+
+// ─── Template: Dev Lab ───
 const labGrid = Array.from({ length: 12 }, (_, r) =>
   Array.from({ length: 18 }, (_, c) => {
     if (r === 0 || r === 11 || c === 0 || c === 17) return W
@@ -233,10 +268,11 @@ const emptyGrid = Array.from({ length: 11 }, (_, r) =>
   })
 )
 
-const emptyRoomTemplate: OfficeTemplate = {
-  id: 'empty',
-  name: 'Empty Room',
-  description: 'Blank canvas — design your own office!',
+// ─── Template: Custom (blank canvas) ───
+const customTemplate: OfficeTemplate = {
+  id: 'custom',
+  name: 'Custom',
+  description: 'Blank canvas — add your own layout and furniture!',
   preview: '📐',
   layout: {
     version: 1,
@@ -253,11 +289,12 @@ const emptyRoomTemplate: OfficeTemplate = {
 }
 
 export const OFFICE_TEMPLATES: OfficeTemplate[] = [
-  startupTemplate,
+  officeTemplate,
+  homeTemplate,
+  livingRoomTemplate,
   openPlanTemplate,
-  cozyStudioTemplate,
   devLabTemplate,
-  emptyRoomTemplate,
+  customTemplate,
 ]
 
 export function getTemplateById(id: string): OfficeTemplate | undefined {
