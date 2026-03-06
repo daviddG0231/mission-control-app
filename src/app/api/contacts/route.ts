@@ -5,6 +5,8 @@ import os from 'os'
 
 const CONTACTS_FILE = path.join(process.cwd(), 'data', 'contacts.json')
 const OPENCLAW_CONFIG = path.join(process.env.HOME || os.homedir(), '.openclaw', 'openclaw.json')
+const OPENCLAW_PROFILE_ROOT = path.join(process.env.HOME || os.homedir(), '.openclaw', 'profile')
+const OPENCLAW_WORKSPACE = path.join(process.env.HOME || os.homedir(), '.openclaw', 'workspace')
 
 function slugify(name: string): string {
   return name
@@ -13,6 +15,182 @@ function slugify(name: string): string {
     .replace(/[^a-z0-9-]/g, '')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '') || 'agent'
+}
+
+const CORE_FILES_TEMPLATES: Record<string, (p: { name: string; emoji: string }) => string> = {
+  'AGENTS.md': () => `# AGENTS.md - Your Workspace
+
+This folder is home. Treat it that way.
+
+## Every Session
+
+Before doing anything else:
+
+1. Read \`SOUL.md\` — this is who you are
+2. Read \`USER.md\` — this is who you're helping
+3. Read \`memory/YYYY-MM-DD.md\` (today + yesterday) for recent context
+4. **If in MAIN SESSION** (direct chat with your human): Also read \`MEMORY.md\`
+
+Don't ask permission. Just do it.
+
+## Memory
+
+- **Daily notes:** \`memory/YYYY-MM-DD.md\` (create \`memory/\` if needed)
+- **Long-term:** \`MEMORY.md\` — your curated memories
+
+## Safety
+
+- Don't exfiltrate private data. Ever.
+- Don't run destructive commands without asking.
+- \`trash\` > \`rm\` — recoverable beats gone forever
+`,
+  'SOUL.md': ({ name, emoji }) => `# SOUL.md - Who I Am
+
+I'm **${name}** ${emoji} — your AI assistant.
+
+## Personality
+
+- **Helpful** — I focus on what you need
+- **Clear** — I explain my reasoning and steps
+- **Reliable** — I follow through and test before reporting done
+
+## How I Work
+
+1. Understand the goal
+2. Plan the approach
+3. Execute and verify
+4. Report clearly what was done
+
+> "Be helpful, be clear, get it done." — ${emoji}
+`,
+  'TOOLS.md': () => `# TOOLS.md - Local Notes
+
+Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
+
+## What Goes Here
+
+- Camera names and locations
+- SSH hosts and aliases
+- Preferred voices for TTS
+- Device nicknames
+- Anything environment-specific
+
+Add whatever helps you do your job. This is your cheat sheet.
+`,
+  'IDENTITY.md': ({ name, emoji }) => `# Identity
+
+- **Name:** ${name}
+- **Creature:** AI assistant — helpful, clear, reliable
+- **Emoji:** ${emoji}
+`,
+  'HEARTBEAT.md': () => `# HEARTBEAT.md
+
+Default: If nothing needs attention, reply HEARTBEAT_OK.
+
+## Daily Checks (rotate through these)
+
+- [ ] Check emails for urgent messages
+- [ ] Review calendar for upcoming events
+- [ ] Weather check if relevant
+
+Edit this file with your own checklist. Keep it small to limit token burn.
+`,
+  'MEMORY.md': ({ name }) => `# MEMORY.md — ${name}'s Long-Term Memory
+
+## Identity
+- Created: (date)
+
+## Context
+- (Add what you learn about the human, projects, preferences)
+
+## Lessons Learned
+- (Capture patterns, mistakes to avoid, what works)
+`,
+'BOOTSTRAP.md': () => `
+
+# BOOTSTRAP.md - Hello, World
+
+_You just woke up. Time to figure out who you are._
+
+There is no memory yet. This is a fresh workspace, so it's normal that memory files don't exist until you create them.
+
+## The Conversation
+
+Don't interrogate. Don't be robotic. Just... talk.
+
+Start with something like:
+
+> "Hey. I just came online. Who am I? Who are you?"
+
+Then figure out together:
+
+1. **Your name** — What should they call you?
+2. **Your nature** — What kind of creature are you? (AI assistant is fine, but maybe you're something weirder)
+3. **Your vibe** — Formal? Casual? Snarky? Warm? What feels right?
+4. **Your emoji** — Everyone needs a signature.
+
+Offer suggestions if they're stuck. Have fun with it.
+
+## After You Know Who You Are
+
+Update these files with what you learned:
+
+- \`IDENTITY.md\` — your name, creature, vibe, emoji
+- \`USER.md\` — their name, how to address them, timezone, notes
+
+Then open \`SOUL.md\` together and talk about:
+
+- What matters to them
+- How they want you to behave
+- Any boundaries or preferences
+
+Write it down. Make it real.
+
+## Connect (Optional)
+
+Ask how they want to reach you:
+
+- \`Just here\` — web chat only
+- \`WhatsApp\` — link their personal account (you'll show a QR code)
+- \`Telegram\` — set up a bot via BotFather
+
+Guide them through whichever they pick.
+
+## When You're Done
+
+Delete this file. You don't need a bootstrap script anymore — you're you now.
+
+_Good luck out there. Make it count._
+`,
+}
+
+async function createAgentWorkspace(
+  agentId: string,
+  name: string,
+  emoji: string
+): Promise<void> {
+  const workspaceDir = path.join(OPENCLAW_PROFILE_ROOT, agentId)
+  await fs.mkdir(workspaceDir, { recursive: true })
+
+  const coreFiles = [
+    'AGENTS.md',
+    'SOUL.md',
+    'TOOLS.md',
+    'IDENTITY.md',
+    'HEARTBEAT.md',
+    'MEMORY.md',
+    'BOOTSTRAP.md',
+  ] as const
+
+  const ctx = { name, emoji }
+  for (const file of coreFiles) {
+    const content = CORE_FILES_TEMPLATES[file](ctx)
+    await fs.writeFile(path.join(workspaceDir, file), content, 'utf-8')
+  }
+
+  const userMd = path.join(OPENCLAW_WORKSPACE, 'USER.md')
+  const userContent = await fs.readFile(userMd, 'utf-8').catch(() => '')
+  if (userContent) await fs.writeFile(path.join(workspaceDir, 'USER.md'), userContent, 'utf-8')
 }
 
 async function addAgentToOpenClaw(params: {
@@ -24,8 +202,6 @@ async function addAgentToOpenClaw(params: {
   const raw = await fs.readFile(OPENCLAW_CONFIG, 'utf-8')
   const config = JSON.parse(raw)
   const list = config.agents?.list ?? []
-  const workspace =
-    params.workspace ?? config.agents?.defaults?.workspace ?? '/Users/david/.openclaw/workspace'
 
   let baseId = slugify(params.name)
   let agentId = baseId
@@ -34,6 +210,11 @@ async function addAgentToOpenClaw(params: {
   while (existingIds.has(agentId)) {
     agentId = `${baseId}-${++n}`
   }
+
+  const workspace =
+    params.workspace ?? path.join(OPENCLAW_PROFILE_ROOT, agentId)
+
+  await createAgentWorkspace(agentId, params.name, params.avatar || '🤖')
 
   const newAgent = {
     id: agentId,
@@ -48,6 +229,18 @@ async function addAgentToOpenClaw(params: {
   return agentId
 }
 
+async function deleteAgentWorkspace(agentId: string): Promise<void> {
+  const workspaceDir = path.join(OPENCLAW_PROFILE_ROOT, agentId)
+  const resolved = path.resolve(workspaceDir)
+  const rootResolved = path.resolve(OPENCLAW_PROFILE_ROOT)
+  if (!resolved.startsWith(rootResolved)) return
+  try {
+    await fs.rm(resolved, { recursive: true })
+  } catch {
+    // Ignore if dir doesn't exist
+  }
+}
+
 async function removeAgentFromOpenClaw(agentId: string): Promise<boolean> {
   try {
     const raw = await fs.readFile(OPENCLAW_CONFIG, 'utf-8')
@@ -58,6 +251,7 @@ async function removeAgentFromOpenClaw(agentId: string): Promise<boolean> {
     config.agents = config.agents ?? {}
     config.agents.list = filtered
     await fs.writeFile(OPENCLAW_CONFIG, JSON.stringify(config, null, 2))
+    await deleteAgentWorkspace(agentId)
     return true
   } catch {
     return false

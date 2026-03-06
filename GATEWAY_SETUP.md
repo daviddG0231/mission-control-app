@@ -8,12 +8,13 @@ Some tools are blocked by default over HTTP. Add them to `gateway.tools.allow` i
 
 - **cron** — list/manage cron jobs
 - **sessions_send** — send messages to chat sessions (used by "Ping Patrick" to send `/status`)
+- **sessions_spawn** — spawn new agent sessions (used by "New Session" in Sessions tab)
 
 Example JSON (in `openclaw.json`):
 ```json
 "gateway": {
   "tools": {
-    "allow": ["cron", "sessions_send"]
+    "allow": ["cron", "sessions_send", "sessions_spawn"]
   }
 }
 ```

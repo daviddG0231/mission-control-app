@@ -40,19 +40,41 @@ function timeAgo(ts: number): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+interface PrimaryUser {
+  id: string
+  name: string
+  role: string
+  avatar: string
+}
+
+interface ConfigAgent {
+  id?: string
+  name?: string
+  model?: { primary?: string }
+  identity?: { name?: string; emoji?: string }
+}
+
+interface ConfigResponse {
+  agents?: { list?: ConfigAgent[]; defaults?: { model?: { primary?: string } } }
+}
+
 export default function TeamPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [cronJobs, setCronJobs] = useState<CronJob[]>([])
   const [tasks, setTasks] = useState<TaskItem[]>([])
+  const [primaryUser, setPrimaryUser] = useState<PrimaryUser | null>(null)
+  const [config, setConfig] = useState<ConfigResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
   const fetchAll = async () => {
     setLoading(true)
     try {
-      const [sessRes, cronRes, taskRes] = await Promise.allSettled([
+      const [sessRes, cronRes, taskRes, userRes, configRes] = await Promise.allSettled([
         fetch('/api/gateway/sessions'),
         fetch('/api/gateway/cron'),
         fetch('/api/tasks'),
+        fetch('/api/user'),
+        fetch('/api/gateway/config'),
       ])
 
       if (sessRes.status === 'fulfilled' && sessRes.value.ok) {
@@ -67,77 +89,108 @@ export default function TeamPage() {
         const d = await taskRes.value.json()
         setTasks(d.tasks || [])
       }
+      if (userRes.status === 'fulfilled' && userRes.value.ok) {
+        const d = await userRes.value.json()
+        setPrimaryUser(d)
+      }
+      if (configRes.status === 'fulfilled' && configRes.value.ok) {
+        const d = await configRes.value.json()
+        setConfig(d)
+      }
     } catch { /* ignore */ }
     setLoading(false)
   }
 
   useEffect(() => { fetchAll() }, [])
 
-  // Derive team members from real sessions
+  const EMOJI_MAP: Record<string, string> = { builder: '🪼', advisor: '💭' }
+  const ROLE_MAP: Record<string, string> = { builder: 'AI Builder', advisor: 'AI Advisor' }
+
+  // Derive team members: primary user + gateway config agents (with session stats) + subagents
   const teamMembers = useMemo(() => {
     const members: { id: string; name: string; role: string; avatar: string; type: 'human' | 'ai'; model?: string; status: string; lastSeen: string; tokens: number; sessionCount: number }[] = []
 
-    // David is always on the team
+    // Primary user from .env
+    const human = primaryUser || { id: 'user', name: 'User', role: 'Human Lead', avatar: '👨‍💻' }
     members.push({
-      id: 'david', name: 'David', role: 'Human Lead', avatar: '👨‍💻',
+      id: human.id, name: human.name, role: human.role, avatar: human.avatar,
       type: 'human', status: 'online', lastSeen: 'now', tokens: 0, sessionCount: 0
     })
 
-    // Group sessions by agent identity
+    // Group sessions by agent id (match session key to config agent id)
     const agentMap: Record<string, { sessions: Session[]; latestUpdate: number; totalTokens: number }> = {}
     for (const s of sessions) {
-      const key = s.key || ''
-      let agentName = 'unknown'
-      if (key.includes('builder')) agentName = 'patrick'
-      else if (key.includes('advisor') || key.includes('dave')) agentName = 'dave'
-      else if (key.includes('subagent')) agentName = 'subagent'
-      else agentName = 'patrick' // main session = patrick
-
-      if (!agentMap[agentName]) agentMap[agentName] = { sessions: [], latestUpdate: 0, totalTokens: 0 }
-      agentMap[agentName].sessions.push(s)
-      agentMap[agentName].totalTokens += s.totalTokens || 0
-      const upd = Number(s.updatedAt) || 0
-      if (upd > agentMap[agentName].latestUpdate) agentMap[agentName].latestUpdate = upd
+      const key = (s.key || '').toLowerCase()
+      if (key.includes('subagent')) {
+        if (!agentMap['subagent']) agentMap['subagent'] = { sessions: [], latestUpdate: 0, totalTokens: 0 }
+        agentMap['subagent'].sessions.push(s)
+        agentMap['subagent'].totalTokens += s.totalTokens || 0
+        const upd = Number(s.updatedAt) || 0
+        if (upd > agentMap['subagent'].latestUpdate) agentMap['subagent'].latestUpdate = upd
+      } else {
+        const agents = config?.agents?.list || []
+        let matched = false
+        for (const a of agents) {
+          const aid = (a.id || '').toLowerCase()
+          if (aid && key.includes(aid)) {
+            if (!agentMap[aid]) agentMap[aid] = { sessions: [], latestUpdate: 0, totalTokens: 0 }
+            agentMap[aid].sessions.push(s)
+            agentMap[aid].totalTokens += s.totalTokens || 0
+            const upd = Number(s.updatedAt) || 0
+            if (upd > agentMap[aid].latestUpdate) agentMap[aid].latestUpdate = upd
+            matched = true
+            break
+          }
+        }
+        if (!matched && agents.length > 0) {
+          const firstId = (agents[0].id || '').toLowerCase()
+          if (firstId) {
+            if (!agentMap[firstId]) agentMap[firstId] = { sessions: [], latestUpdate: 0, totalTokens: 0 }
+            agentMap[firstId].sessions.push(s)
+            agentMap[firstId].totalTokens += s.totalTokens || 0
+            const upd = Number(s.updatedAt) || 0
+            if (upd > agentMap[firstId].latestUpdate) agentMap[firstId].latestUpdate = upd
+          }
+        }
+      }
     }
 
-    if (agentMap['patrick'] || sessions.length > 0) {
-      const p = agentMap['patrick'] || { sessions: [], latestUpdate: Date.now(), totalTokens: 0 }
+    // Agents from gateway config
+    const agents = config?.agents?.list || []
+    const defaultModel = config?.agents?.defaults?.model?.primary
+    for (const a of agents) {
+      const aid = a.id || ''
+      if (!aid) continue
+      const stats = agentMap[aid] || { sessions: [], latestUpdate: 0, totalTokens: 0 }
       members.push({
-        id: 'patrick', name: 'Patrick 🪼', role: 'AI Builder', avatar: '🪼',
-        type: 'ai', model: 'claude-opus-4',
-        status: p.latestUpdate > Date.now() - 300000 ? 'active' : 'idle',
-        lastSeen: p.latestUpdate ? timeAgo(p.latestUpdate) : 'unknown',
-        tokens: p.totalTokens,
-        sessionCount: p.sessions.length
+        id: aid,
+        name: a.identity?.name || a.name || aid,
+        role: ROLE_MAP[aid] || 'AI Agent',
+        avatar: a.identity?.emoji || EMOJI_MAP[aid] || '🤖',
+        type: 'ai',
+        model: a.model?.primary || defaultModel,
+        status: stats.latestUpdate > Date.now() - 300000 ? 'active' : 'idle',
+        lastSeen: stats.latestUpdate ? timeAgo(stats.latestUpdate) : 'unknown',
+        tokens: stats.totalTokens,
+        sessionCount: stats.sessions.length,
       })
     }
 
-    if (agentMap['dave']) {
-      const d = agentMap['dave']
+    // Subagents (from sessions, not in config)
+    const saStats = agentMap['subagent']
+    if (saStats) {
       members.push({
-        id: 'dave', name: 'Dave 💭', role: 'AI Advisor', avatar: '💭',
-        type: 'ai', model: 'claude-sonnet-4',
-        status: d.latestUpdate > Date.now() - 300000 ? 'active' : 'idle',
-        lastSeen: d.latestUpdate ? timeAgo(d.latestUpdate) : 'unknown',
-        tokens: d.totalTokens,
-        sessionCount: d.sessions.length
-      })
-    }
-
-    if (agentMap['subagent']) {
-      const sa = agentMap['subagent']
-      members.push({
-        id: 'subagents', name: 'Sub-Agents', role: `${sa.sessions.length} worker(s)`, avatar: '⚡',
+        id: 'subagents', name: 'Sub-Agents', role: `${saStats.sessions.length} worker(s)`, avatar: '⚡',
         type: 'ai', model: 'various',
-        status: sa.latestUpdate > Date.now() - 300000 ? 'active' : 'idle',
-        lastSeen: sa.latestUpdate ? timeAgo(sa.latestUpdate) : 'unknown',
-        tokens: sa.totalTokens,
-        sessionCount: sa.sessions.length
+        status: saStats.latestUpdate > Date.now() - 300000 ? 'active' : 'idle',
+        lastSeen: saStats.latestUpdate ? timeAgo(saStats.latestUpdate) : 'unknown',
+        tokens: saStats.totalTokens,
+        sessionCount: saStats.sessions.length,
       })
     }
 
     return members
-  }, [sessions])
+  }, [sessions, primaryUser, config])
 
   // Activity timeline — persistent log
   const [activities, setActivities] = useState<{
@@ -488,7 +541,7 @@ export default function TeamPage() {
             'Suggest next steps when finishing current work',
             'Share knowledge and learnings with the team',
             'Respect human oversight and ask when uncertain',
-            'No silent background work — tell David what you did',
+            `No silent background work — tell ${primaryUser?.name || 'David'} what you did`,
           ].map((rule, i) => (
             <div key={i} className="flex items-start gap-2 py-1">
               <CheckCircle className="w-3.5 h-3.5 text-[var(--success)] mt-0.5 flex-shrink-0" />

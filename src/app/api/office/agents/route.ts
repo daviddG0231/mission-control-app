@@ -58,28 +58,31 @@ interface AgentWithTools {
 
 async function parseTranscriptToolState(jsonlPath: string): Promise<{
   activeTools: Array<{ name: string; status: string; animation: 'typing' | 'reading' }>
-  isWaiting: boolean
+  isGenerating: boolean
 }> {
   try {
     const content = await fs.readFile(jsonlPath, 'utf-8')
     const lines = content.trim().split('\n').filter(Boolean)
     const activeToolIds = new Set<string>()
     const toolStatuses = new Map<string, { name: string; status: string; animation: 'typing' | 'reading' }>()
-    let isWaiting = false
+    let isGenerating = false
 
     for (let i = lines.length - 1; i >= 0 && i >= lines.length - 200; i--) {
       try {
         const record = JSON.parse(lines[i])
         if (record.type === 'system' && record.subtype === 'turn_duration') {
-          isWaiting = true
+          isGenerating = true
           break
         }
-        if (record.type === 'assistant' && Array.isArray(record.message?.content)) {
-          const blocks = record.message.content as Array<{
+        const content = record.message?.content ?? record.content
+        const isAssistant = record.type === 'assistant' || (record.type === 'message' && record.message?.role === 'assistant')
+        if (isAssistant && Array.isArray(content)) {
+          const blocks = content as Array<{
             type: string
             id?: string
             name?: string
             input?: Record<string, unknown>
+            arguments?: Record<string, unknown>
           }>
           for (const b of blocks) {
             if ((b.type === 'tool_use' || b.type === 'toolCall') && b.id && b.name) {
@@ -95,19 +98,19 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
             }
           }
         }
-        // Handle tool results (both old and new format)
-        if (record.type === 'user' && Array.isArray(record.message?.content)) {
-          const blocks = record.message.content as Array<{ type: string; tool_use_id?: string }>
-          for (const b of blocks) {
-            if (b.type === 'tool_result' && b.tool_use_id) {
+        // Handle tool results (old format: user message with tool_result blocks)
+        const userContent = record.type === 'user' ? (record.message?.content ?? record.content) : null
+        if (Array.isArray(userContent)) {
+          for (const b of userContent as Array<{ type?: string; tool_use_id?: string }>) {
+            if ((b.type === 'tool_result' || b.type === 'toolResult') && b.tool_use_id) {
               activeToolIds.delete(b.tool_use_id)
               toolStatuses.delete(b.tool_use_id)
             }
           }
         }
-        // Handle new format tool results
+        // Handle new format tool results (standalone toolResult message)
         if (record.type === 'message' && record.message?.role === 'toolResult') {
-          const toolCallId = record.message.toolCallId
+          const toolCallId = record.message.toolCallId ?? record.message.tool_use_id
           if (toolCallId) {
             activeToolIds.delete(toolCallId)
             toolStatuses.delete(toolCallId)
@@ -119,7 +122,7 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
     }
 
     const activeTools = Array.from(toolStatuses.values())
-    return { activeTools, isWaiting: isWaiting && activeTools.length === 0 }
+    return { activeTools, isGenerating: isGenerating && activeTools.length === 0 }
   } catch {
     return { activeTools: [], isWaiting: false }
   }
@@ -193,16 +196,18 @@ export async function GET() {
       if (sessionId) {
         const jsonlPath = await findJsonlForSession(sessionId)
         if (jsonlPath) {
-          const { activeTools, isWaiting } = await parseTranscriptToolState(jsonlPath)
+          const { activeTools, isGenerating } = await parseTranscriptToolState(jsonlPath)
 
+          // Working only when actually typing (generating) or using tools; idle when connection exists but no outgoing work
           if (activeTools.length > 0) {
             const last = activeTools[activeTools.length - 1]
             status = last.animation
             currentTool = last.status
             currentToolName = last.name
             animation = last.animation
-          } else if (isWaiting) {
-            status = 'waiting'
+          } else if (isGenerating) {
+            status = 'typing'
+            animation = 'typing'
           }
         }
       }
