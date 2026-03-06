@@ -32,7 +32,7 @@ yarn-error.log*
 .env.development
 .env.production
 .env.test
-.env.example
+# .env.example is tracked (template for setup)
 
 # vercel
 .vercel

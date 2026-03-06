@@ -102,7 +102,7 @@ async function getRepositoryInfo(repoPath: string): Promise<GitRepository> {
 
 export async function GET() {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || '/Users/david/.openclaw/workspace'
+    const workspaceDir = process.env.WORKSPACE_DIR || path.join(process.env.HOME || '/root', '.openclaw/workspace')
     
     // Find all git repositories in the workspace
     const repoPaths = await findGitRepositories(workspaceDir)

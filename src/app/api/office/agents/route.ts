@@ -13,10 +13,9 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
 import fs from 'fs/promises'
-import os from 'os'
+// os import removed — using paths.ts
 
-const HOME = process.env.HOME || os.homedir()
-const OPENCLAW_CONFIG = path.join(HOME, '.openclaw', 'openclaw.json')
+import { OPENCLAW_CONFIG, AGENTS_DIR } from '@/lib/paths'
 const ACTIVE_THRESHOLD_MS = 15_000
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -134,7 +133,7 @@ async function getAgentActivityFromDisk(agentId: string): Promise<{
   animation?: 'typing' | 'reading'
   sessionCount: number
 }> {
-  const sessionsDir = path.join(HOME, '.openclaw', 'agents', agentId, 'sessions')
+  const sessionsDir = path.join(AGENTS_DIR, agentId, 'sessions')
   try {
     const files = await fs.readdir(sessionsDir)
     const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
@@ -185,7 +184,7 @@ async function getAgentActivityFromDisk(agentId: string): Promise<{
 }
 
 async function findActiveSpawns(agentId: string): Promise<string[]> {
-  const sessionsDir = path.join(HOME, '.openclaw', 'agents', agentId, 'sessions')
+  const sessionsDir = path.join(AGENTS_DIR, agentId, 'sessions')
   const spawns: string[] = []
   try {
     const files = await fs.readdir(sessionsDir)

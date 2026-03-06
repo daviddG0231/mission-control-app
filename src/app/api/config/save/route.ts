@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile } from 'fs/promises'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { OPENCLAW_CONFIG } from '@/lib/paths'
 
 const execAsync = promisify(exec)
 
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Write the configuration to the file
-    const configPath = '/Users/david/.openclaw/openclaw.json'
+    const configPath = OPENCLAW_CONFIG
     const configJson = JSON.stringify(config, null, 2)
     
     await writeFile(configPath, configJson, 'utf-8')

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join, normalize } from 'path'
 
-const WORKSPACE_PATH = '/Users/david/.openclaw/workspace'
+import { WORKSPACE_PATH } from '@/lib/paths'
 
 // Key workspace files to display
 const KEY_FILES = [

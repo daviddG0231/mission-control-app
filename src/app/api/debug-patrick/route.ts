@@ -3,8 +3,8 @@ import fs from 'fs/promises'
 import path from 'path'
 
 const SESSIONS_DIRS = [
-  path.join(process.env.HOME || '/Users/david', '.openclaw/agents/builder/sessions'),
-  path.join(process.env.HOME || '/Users/david', '.openclaw/agents/main/sessions'),
+  path.join(process.env.HOME || process.env.HOME || '/root', '.openclaw/agents/builder/sessions'),
+  path.join(process.env.HOME || process.env.HOME || '/root', '.openclaw/agents/main/sessions'),
 ]
 
 const TYPING_TOOLS = new Set(['Write', 'Edit', 'exec', 'Bash', 'browser', 'sessions_spawn', 'message', 'tts'])

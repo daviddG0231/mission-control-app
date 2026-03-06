@@ -5,7 +5,7 @@ import path from 'path'
 import { existsSync } from 'fs'
 
 const execAsync = promisify(exec)
-const WORKSPACE_PATH = '/Users/david/.openclaw/workspace'
+import { WORKSPACE_PATH } from '@/lib/paths'
 
 function isPathSafe(requestedPath: string): boolean {
   const resolved = path.resolve(requestedPath)

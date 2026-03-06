@@ -34,7 +34,7 @@ async function checkPort(port: number): Promise<boolean> {
 }
 
 export async function GET() {
-  const home = process.env.HOME || '/Users/david'
+  const home = process.env.HOME || process.env.HOME || '/root'
   const ocDir = path.join(home, '.openclaw')
 
   // Versions

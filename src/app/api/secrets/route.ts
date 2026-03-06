@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Wrong password' }, { status: 401 })
   }
 
-  const home = process.env.HOME || '/Users/david'
+  const home = process.env.HOME || process.env.USERPROFILE || '/root'
   const allVars: EnvVar[] = []
 
   // TutorFlow env

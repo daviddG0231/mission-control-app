@@ -16,7 +16,7 @@ export interface ProjectData {
   techStack: string[]
 }
 
-const WORKSPACE_PATH = '/Users/david/.openclaw/workspace'
+import { WORKSPACE_PATH } from '@/lib/paths'
 const EXCLUDED_DIRS = new Set([
   'memory',
   'config', 

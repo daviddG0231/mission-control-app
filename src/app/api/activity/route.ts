@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs/promises'
 import path from 'path'
 
-const SESSIONS_DIR = path.join(process.env.HOME || '/Users/david', '.openclaw/agents/builder/sessions')
+const HOME = process.env.HOME || process.env.USERPROFILE || '/root'
+const SESSIONS_DIR = path.join(HOME, '.openclaw/agents/builder/sessions')
 const LOG_FILE = path.join(process.cwd(), 'data', 'activity-log.json')
 
 interface Activity {

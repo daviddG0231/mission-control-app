@@ -1,3 +1,4 @@
+import { OPENCLAW_CONFIG } from '@/lib/paths'
 import { NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 
@@ -6,7 +7,7 @@ import { readFile } from 'fs/promises'
  */
 export async function GET() {
   try {
-    const raw = await readFile('/Users/david/.openclaw/openclaw.json', 'utf-8')
+    const raw = await readFile(OPENCLAW_CONFIG, 'utf-8')
     const config = JSON.parse(raw)
     const models: { id: string; label: string }[] = []
 

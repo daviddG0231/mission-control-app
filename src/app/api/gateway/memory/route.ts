@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 
-const WORKSPACE = process.env.WORKSPACE_PATH || '/Users/david/.openclaw/workspace'
+const WORKSPACE = process.env.WORKSPACE_PATH || join(process.env.HOME || '/root', '.openclaw/workspace')
 
 export async function GET(request: Request) {
   try {

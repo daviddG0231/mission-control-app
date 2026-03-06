@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Building2, RefreshCw, LayoutGrid, X, Save, RotateCcw, Plus, Trash2, Users } from 'lucide-react'
 
-const CHARACTER_COUNT = 6
+const CHARACTER_COUNT = 9
 const CHAR_STORAGE_KEY = 'office-character-map'
 
 interface OfficeAgent {
@@ -74,6 +74,25 @@ export default function OfficePage() {
 
   const setAgentCharacter = useCallback((agentId: string, charIndex: number) => {
     setCharacterMap((m) => ({ ...m, [agentId]: charIndex }))
+    // Re-create the agent in the iframe with the new character
+    const win = iframeRef.current?.contentWindow
+    const idMap = agentIdMapRef.current
+    const numId = idMap.get(agentId)
+    if (win && numId != null) {
+      const agent = agentsRef.current.find((a) => a.id === agentId)
+      const resolvedIndex = (charIndex >= 0 && charIndex < CHARACTER_COUNT) ? charIndex : (numId % CHARACTER_COUNT)
+      // Remove and re-add to force character change
+      win.postMessage({ type: 'agentClosed', id: numId }, '*')
+      setTimeout(() => {
+        win.postMessage({
+          type: 'agentCreated',
+          id: numId,
+          folderName: agent?.name || agentId,
+          characterIndex: resolvedIndex,
+        }, '*')
+        console.log(`[Office] Character change: ${agentId} → sprite ${resolvedIndex}`)
+      }, 250)
+    }
   }, [])
 
   const fetchAgents = useCallback(async () => {
@@ -731,7 +750,10 @@ export default function OfficePage() {
                       </span>
                       <select
                         value={characterMap[a.id] ?? -1}
-                        onChange={(e) => setAgentCharacter(a.id, parseInt(e.target.value, 10))}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10)
+                          setAgentCharacter(a.id, val)
+                        }}
                         className="px-2 py-1 border-2 border-[var(--border)] text-sm"
                         style={{ background: 'var(--bg-card)', color: 'white' }}
                       >

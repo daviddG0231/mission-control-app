@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         break
       
       case 'clear-next-cache':
-        shellCommand = 'rm -rf /Users/david/.openclaw/workspace/mission-control-app/.next'
+        shellCommand = `rm -rf ${process.cwd()}/.next`
         break
       
       default:

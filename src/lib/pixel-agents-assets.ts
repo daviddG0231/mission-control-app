@@ -14,7 +14,7 @@ const WALL_BITMASK_COUNT = 16
 const CHAR_FRAME_W = 16
 const CHAR_FRAME_H = 32
 const CHAR_FRAMES_PER_ROW = 7
-const CHAR_COUNT = 6
+const CHAR_COUNT = 9
 const CHARACTER_DIRECTIONS = ['down', 'up', 'right'] as const
 
 function getAssetsRoot(): string {
@@ -102,13 +102,25 @@ export function loadWallTiles(): { sprites: string[][][] } | null {
   }
 }
 
+function getCharacterAssetsDir(): string {
+  const officeViewDir = path.join(process.cwd(), 'public', 'office-view', 'assets', 'characters')
+  return officeViewDir
+}
+
 export function loadCharacterSprites(): { characters: Array<{ down: string[][][]; up: string[][][]; right: string[][][] }> } | null {
   try {
-    const charDir = path.join(getAssetsRoot(), 'assets', 'characters')
+    const charDir = getCharacterAssetsDir()
     const characters: Array<{ down: string[][][]; up: string[][][]; right: string[][][] }> = []
     for (let ci = 0; ci < CHAR_COUNT; ci++) {
       const filePath = path.join(charDir, `char_${ci}.png`)
-      if (!fs.existsSync(filePath)) return null
+      if (!fs.existsSync(filePath)) {
+        console.warn(`[pixel-agents] Missing character sprite: char_${ci}.png — skipping`)
+        // Use first character as fallback instead of failing entirely
+        if (characters.length > 0) {
+          characters.push({ ...characters[0] })
+        }
+        continue
+      }
       const pngBuffer = fs.readFileSync(filePath)
       const png = PNG.sync.read(pngBuffer)
       const charData: { down: string[][][]; up: string[][][]; right: string[][][] } = {

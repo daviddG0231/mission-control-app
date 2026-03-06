@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const { stdout, stderr } = await execAsync(command, {
       timeout: 30000,
       maxBuffer: 1024 * 1024, // 1MB
-      cwd: cwd || process.env.HOME || '/Users/david',
+      cwd: cwd || process.env.HOME || process.env.HOME || '/root',
       env: { ...process.env, TERM: 'xterm-256color' },
       shell: '/bin/zsh'
     })

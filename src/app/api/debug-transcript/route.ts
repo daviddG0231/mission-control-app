@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import fs from 'fs/promises'
 import path from 'path'
 
+const HOME = process.env.HOME || process.env.USERPROFILE || '/root'
 const SESSIONS_DIRS = [
-  path.join(process.env.HOME || '/Users/david', '.openclaw/agents/builder/sessions'),
-  path.join(process.env.HOME || '/Users/david', '.openclaw/agents/main/sessions'),
+  path.join(HOME, '.openclaw/agents/builder/sessions'),
+  path.join(HOME, '.openclaw/agents/main/sessions'),
 ]
 
 async function findJsonlForSession(sessionId: string): Promise<string | null> {

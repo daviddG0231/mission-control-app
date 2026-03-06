@@ -18,7 +18,7 @@ export default function TerminalPage() {
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
-  const [cwd, setCwd] = useState('/Users/david')
+  const [cwd, setCwd] = useState(typeof window !== 'undefined' ? '~' : '~')
   const [running, setRunning] = useState(false)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -182,7 +182,7 @@ export default function TerminalPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const shortCwd = cwd.replace('/Users/david', '~')
+  const shortCwd = cwd.replace(new RegExp('^' + (typeof window !== 'undefined' ? '' : '')), '~')
 
   return (
     <div className="flex flex-col h-[calc(100vh-52px)]">
@@ -233,7 +233,7 @@ export default function TerminalPage() {
             {/* Prompt + Command */}
             <div className="flex items-center gap-0">
               <span className="text-[var(--accent)] select-none">
-                {entry.cwd.replace('/Users/david', '~')}
+                {entry.cwd.replace(new RegExp('^' + (typeof window !== 'undefined' ? '' : '')), '~')}
               </span>
               <span className="text-[var(--success)] select-none mx-1">
                 <ChevronRight className="w-3 h-3 inline" />
