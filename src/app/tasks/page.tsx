@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Trash2, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, timeAgo } from '@/lib/utils'
 import LiveActivity from '@/components/live-activity'
+import { useGatewayData } from '@/hooks/use-gateway'
 
 interface Task {
   id: string
@@ -15,6 +16,29 @@ interface Task {
   timestamp?: string
 }
 
+interface Subagent {
+  sessionKey?: string
+  label?: string
+  task?: string
+  status?: string
+  agentId?: string
+  startedAt?: string
+}
+
+interface SubagentsResponse {
+  sessions?: Subagent[]
+  result?: { sessions?: Subagent[] }
+}
+
+const AGENT_INFO: Record<string, { name: string; emoji: string; color: string }> = {
+  builder:  { name: 'Patrick', emoji: '🪼', color: '#6366f1' },
+  cto:      { name: 'Elliot',  emoji: '🖥️', color: '#3b82f6' },
+  coo:      { name: 'Bobby',   emoji: '📋', color: '#8b5cf6' },
+  backend:  { name: 'Mark',    emoji: '⚙️', color: '#f59e0b' },
+  frontend: { name: 'Mickey',  emoji: '🎨', color: '#ec4899' },
+  qa:       { name: 'Snoopy',  emoji: '🔍', color: '#22c55e' },
+}
+
 interface Column {
   id: string
   label: string
@@ -22,63 +46,21 @@ interface Column {
   tasks: Task[]
 }
 
-const PATRICK = { name: 'Patrick', emoji: '🪼', color: '#6366f1' }
-const SUBAGENT = { name: 'Sub-agent', emoji: '⚡', color: '#f59e0b' }
-
 const INITIAL_COLUMNS: Column[] = [
-  {
-    id: 'recurring',
-    label: 'Recurring',
-    color: '#71717a',
-    tasks: [],
-  },
-  {
-    id: 'backlog',
-    label: 'Backlog',
-    color: '#71717a',
-    tasks: [
-      { id: '1', title: 'Quiz system UI', description: 'Build quiz creation and taking interface for students and teachers', agent: PATRICK, project: { name: 'TutorFlow', color: '#6366f1' }, priority: 'medium', timestamp: 'less than a minute' },
-      { id: '2', title: 'Settings page', description: 'User profile, preferences, and account settings', project: { name: 'TutorFlow', color: '#6366f1' }, priority: 'low' },
-      { id: '3', title: 'Course scheduling', description: 'Calendar-based scheduling for courses and classes', project: { name: 'TutorFlow', color: '#6366f1' }, priority: 'low' },
-      { id: '14', title: 'Deploy MC to Vercel', description: 'Set up production deployment for Mission Control', agent: PATRICK, project: { name: 'Mission Control', color: '#ec4899' }, priority: 'medium' },
-    ],
-  },
-  {
-    id: 'in-progress',
-    label: 'In Progress',
-    color: '#6366f1',
-    tasks: [
-      { id: '4', title: 'Mission Control Dashboard', description: 'Build the MC app with live gateway connection and all features', agent: PATRICK, project: { name: 'Mission Control', color: '#ec4899' }, priority: 'high', timestamp: 'less than a minute' },
-      { id: '5', title: 'Student dashboard widgets', description: 'Real data widgets for student view', agent: SUBAGENT, project: { name: 'TutorFlow', color: '#6366f1' }, priority: 'high', timestamp: 'less than a minute' },
-      { id: '6', title: 'Notification system', description: 'Bell icon with real unread count + dropdown notifications', agent: SUBAGENT, project: { name: 'TutorFlow', color: '#6366f1' }, priority: 'high' },
-    ],
-  },
-  {
-    id: 'review',
-    label: 'Review',
-    color: '#f59e0b',
-    tasks: [
-      { id: '7', title: 'Mobile responsive', description: 'Hamburger menu sidebar on mobile screens', agent: SUBAGENT, project: { name: 'TutorFlow', color: '#6366f1' }, priority: 'medium' },
-      { id: '8', title: 'Grading flow', description: 'Full grading: view submissions, grade with feedback, student sees results', agent: SUBAGENT, project: { name: 'TutorFlow', color: '#6366f1' }, priority: 'high' },
-    ],
-  },
-  {
-    id: 'done',
-    label: 'Done',
-    color: '#22c55e',
-    tasks: [
-      { id: '9', title: 'Sidebar navigation', agent: PATRICK, project: { name: 'TutorFlow', color: '#6366f1' } },
-      { id: '10', title: 'Content upload system', agent: PATRICK, project: { name: 'TutorFlow', color: '#6366f1' } },
-      { id: '11', title: 'Teacher dashboard', agent: PATRICK, project: { name: 'TutorFlow', color: '#6366f1' } },
-      { id: '12', title: 'Module management', agent: PATRICK, project: { name: 'TutorFlow', color: '#6366f1' } },
-      { id: '13', title: 'Inline content viewer', agent: PATRICK, project: { name: 'TutorFlow', color: '#6366f1' } },
-    ],
-  },
+  { id: 'recurring', label: 'Recurring', color: '#71717a', tasks: [] },
+  { id: 'backlog', label: 'Backlog', color: '#71717a', tasks: [] },
+  { id: 'in-progress', label: 'In Progress', color: '#6366f1', tasks: [] },
+  { id: 'review', label: 'Review', color: '#f59e0b', tasks: [] },
+  { id: 'done', label: 'Done', color: '#22c55e', tasks: [] },
 ]
 
 const AGENTS_FILTER = [
   { name: 'Patrick', emoji: '🪼' },
-  { name: 'Dave', emoji: '💭' },
+  { name: 'Elliot', emoji: '🖥️' },
+  { name: 'Bobby', emoji: '📋' },
+  { name: 'Mark', emoji: '⚙️' },
+  { name: 'Mickey', emoji: '🎨' },
+  { name: 'Snoopy', emoji: '🔍' },
 ]
 
 const PIPELINE_ORDER = ['backlog', 'in-progress', 'review', 'done']
@@ -102,16 +84,56 @@ export default function TasksPage() {
   // Save to server whenever columns change (after initial load)
   const saveColumns = useCallback((cols: Column[]) => {
     if (!loaded) return
+    const colsToSave = cols.map((col) => ({
+      ...col,
+      tasks: col.tasks.filter((t) => !t.id.startsWith('session-')),
+    }))
     fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cols),
+      body: JSON.stringify(colsToSave),
     }).catch(() => {})
   }, [loaded])
 
   useEffect(() => {
     if (loaded) saveColumns(columns)
   }, [columns, loaded, saveColumns])
+
+  // Fetch live sub-agent sessions from gateway
+  const { data: subData } = useGatewayData<SubagentsResponse>('/api/gateway/subagents', 15000)
+
+  useEffect(() => {
+    const subagents: Subagent[] = subData?.sessions || subData?.result?.sessions || []
+    if (!subagents.length) return
+
+    const toTask = (s: Subagent): Task => ({
+      id: `session-${s.sessionKey || s.label || Math.random()}`,
+      title: s.label || s.agentId || 'Agent Task',
+      description: s.task,
+      agent: s.agentId
+        ? (AGENT_INFO[s.agentId] || { name: s.agentId, emoji: '🤖', color: '#6366f1' })
+        : undefined,
+      timestamp: s.startedAt ? timeAgo(s.startedAt) : undefined,
+    })
+
+    const inProgressTasks = subagents.filter((s) => s.status === 'running').map(toTask)
+    const doneTasks = subagents.filter((s) => s.status && s.status !== 'running').map(toTask)
+
+    setColumns((cols) =>
+      cols.map((col) => {
+        if (col.id === 'in-progress') {
+          const manual = col.tasks.filter((t) => !t.id.startsWith('session-'))
+          return { ...col, tasks: [...inProgressTasks, ...manual] }
+        }
+        if (col.id === 'done') {
+          const manual = col.tasks.filter((t) => !t.id.startsWith('session-'))
+          return { ...col, tasks: [...doneTasks, ...manual] }
+        }
+        return col
+      })
+    )
+  }, [subData])
+
   const [newTaskCol, setNewTaskCol] = useState<string | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [activeAgent, setActiveAgent] = useState<string | null>(null)

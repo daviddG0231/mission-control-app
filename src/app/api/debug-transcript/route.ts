@@ -60,7 +60,7 @@ export async function GET() {
             toolStatuses.delete(toolCallId)
           }
         }
-      } catch (e) {
+      } catch {
         // Skip malformed
       }
     }

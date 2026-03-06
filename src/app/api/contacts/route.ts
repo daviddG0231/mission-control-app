@@ -203,7 +203,7 @@ async function addAgentToOpenClaw(params: {
   const config = JSON.parse(raw)
   const list = config.agents?.list ?? []
 
-  let baseId = slugify(params.name)
+  const baseId = slugify(params.name)
   let agentId = baseId
   let n = 1
   const existingIds = new Set((list as { id?: string }[]).map((a) => a.id))

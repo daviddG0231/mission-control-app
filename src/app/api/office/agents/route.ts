@@ -1,23 +1,27 @@
 /**
- * Agent Office API — OpenClaw agents + tool activity for pixel-style office view.
- * Reads config for agent list, sessions from gateway, and parses JSONL for tool state.
+ * Agent Office API — Shows CONFIGURED agents with real-time status.
+ * Scans each agent's JSONL session files directly on disk
+ * (gateway sessions_list is agent-scoped and can't see other agents).
+ *
+ * Status:
+ * - "typing" — JSONL modified <15s ago OR has active tool calls OR generating
+ * - "reading" — using read/search tools
+ * - "waiting" — has sessions but nothing active recently
+ * - "idle" — no sessions at all
+ * - Cross-agent: if agent B is active and was spawned by A → A shows "Chatting with B"
  */
 import { NextResponse } from 'next/server'
 import path from 'path'
 import fs from 'fs/promises'
 import os from 'os'
-import { invokeGatewayTool } from '@/lib/gateway'
 
-const OPENCLAW_CONFIG = path.join(process.env.HOME || os.homedir(), '.openclaw', 'openclaw.json')
+const HOME = process.env.HOME || os.homedir()
+const OPENCLAW_CONFIG = path.join(HOME, '.openclaw', 'openclaw.json')
+const ACTIVE_THRESHOLD_MS = 15_000
 
-const SESSIONS_DIRS = [
-  path.join(process.env.HOME || '/Users/david', '.openclaw/agents/builder/sessions'),
-  path.join(process.env.HOME || '/Users/david', '.openclaw/agents/main/sessions'),
-]
-
-// Map tool names to animation type (typing vs reading)
-const TYPING_TOOLS = new Set(['Write', 'Edit', 'exec', 'Bash', 'browser', 'sessions_spawn', 'message', 'tts'])
-const READING_TOOLS = new Set(['Read', 'Grep', 'Glob', 'web_fetch', 'web_search', 'memory_search'])
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const TYPING_TOOLS = new Set(['Write', 'Edit', 'exec', 'Bash', 'browser', 'sessions_spawn', 'message', 'tts', 'canvas', 'subagents'])
+const READING_TOOLS = new Set(['Read', 'Grep', 'Glob', 'web_fetch', 'web_search', 'memory_search', 'memory_get', 'image', 'pdf'])
 
 function formatToolStatus(name: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '')
@@ -25,12 +29,12 @@ function formatToolStatus(name: string, input: Record<string, unknown>): string 
     case 'Read': return `Reading ${base(input.file_path || input.path)}`
     case 'Edit': return `Editing ${base(input.file_path || input.path)}`
     case 'Write': return `Writing ${base(input.file_path || input.path)}`
-    case 'exec': return `Running: ${String(input.command || '').slice(0, 40)}…`
-    case 'Bash': return `Running: ${String(input.command || '').slice(0, 40)}…`
+    case 'exec': return `Running: ${String(input.command || '').slice(0, 40)}`
+    case 'Bash': return `Running: ${String(input.command || '').slice(0, 40)}`
     case 'browser': return 'Using browser'
     case 'web_search': return 'Searching web'
     case 'web_fetch': return 'Fetching web'
-    case 'sessions_spawn': return `Spawning agent: ${String(input.task || '').slice(0, 30)}…`
+    case 'sessions_spawn': return `Spawning: ${String(input.agentId || input.label || '').slice(0, 30)}`
     case 'memory_search': return 'Searching memory'
     case 'tts': return 'Speaking'
     case 'message': return 'Sending message'
@@ -39,12 +43,11 @@ function formatToolStatus(name: string, input: Record<string, unknown>): string 
 }
 
 function getAnimationType(toolName: string): 'typing' | 'reading' {
-  if (TYPING_TOOLS.has(toolName)) return 'typing'
   if (READING_TOOLS.has(toolName)) return 'reading'
   return 'typing'
 }
 
-interface AgentWithTools {
+interface AgentStatus {
   id: string
   name: string
   emoji: string
@@ -54,6 +57,7 @@ interface AgentWithTools {
   animation?: 'typing' | 'reading'
   isSubagent?: boolean
   parentId?: string
+  activeSessions?: number
 }
 
 async function parseTranscriptToolState(jsonlPath: string): Promise<{
@@ -74,31 +78,28 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
           isGenerating = true
           break
         }
-        const content = record.message?.content ?? record.content
-        const isAssistant = record.type === 'assistant' || (record.type === 'message' && record.message?.role === 'assistant')
-        if (isAssistant && Array.isArray(content)) {
-          const blocks = content as Array<{
-            type: string
-            id?: string
-            name?: string
-            input?: Record<string, unknown>
-            arguments?: Record<string, unknown>
-          }>
-          for (const b of blocks) {
+        const msgContent = record.message?.content ?? record.content
+        const isAssistant = record.type === 'assistant' ||
+          (record.type === 'message' && record.message?.role === 'assistant')
+
+        if (isAssistant && Array.isArray(msgContent)) {
+          for (const b of msgContent as Array<{
+            type: string; id?: string; name?: string
+            input?: Record<string, unknown>; arguments?: Record<string, unknown>
+          }>) {
             if ((b.type === 'tool_use' || b.type === 'toolCall') && b.id && b.name) {
               if (!activeToolIds.has(b.id)) {
                 activeToolIds.add(b.id)
-                const status = formatToolStatus(b.name, b.input || b.arguments || {})
                 toolStatuses.set(b.id, {
                   name: b.name,
-                  status,
+                  status: formatToolStatus(b.name, b.input || b.arguments || {}),
                   animation: getAnimationType(b.name),
                 })
               }
             }
           }
         }
-        // Handle tool results (old format: user message with tool_result blocks)
+
         const userContent = record.type === 'user' ? (record.message?.content ?? record.content) : null
         if (Array.isArray(userContent)) {
           for (const b of userContent as Array<{ type?: string; tool_use_id?: string }>) {
@@ -108,7 +109,6 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
             }
           }
         }
-        // Handle new format tool results (standalone toolResult message)
         if (record.type === 'message' && record.message?.role === 'toolResult') {
           const toolCallId = record.message.toolCallId ?? record.message.tool_use_id
           if (toolCallId) {
@@ -116,166 +116,184 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
             toolStatuses.delete(toolCallId)
           }
         }
-      } catch {
-        /* skip malformed */
-      }
+      } catch { /* skip malformed */ }
     }
-
-    const activeTools = Array.from(toolStatuses.values())
-    return { activeTools, isGenerating: isGenerating && activeTools.length === 0 }
+    return {
+      activeTools: Array.from(toolStatuses.values()),
+      isGenerating: isGenerating && toolStatuses.size === 0,
+    }
   } catch {
-    return { activeTools: [], isWaiting: false }
+    return { activeTools: [], isGenerating: false }
   }
 }
 
-async function findJsonlForSession(sessionId: string): Promise<string | null> {
-  for (const dir of SESSIONS_DIRS) {
-    try {
-      const p = path.join(dir, `${sessionId}.jsonl`)
-      await fs.access(p)
-      return p
-    } catch {
-      continue
+async function getAgentActivityFromDisk(agentId: string): Promise<{
+  status: 'typing' | 'reading' | 'waiting' | 'idle'
+  currentTool?: string
+  currentToolName?: string
+  animation?: 'typing' | 'reading'
+  sessionCount: number
+}> {
+  const sessionsDir = path.join(HOME, '.openclaw', 'agents', agentId, 'sessions')
+  try {
+    const files = await fs.readdir(sessionsDir)
+    const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
+    if (jsonlFiles.length === 0) return { status: 'idle', sessionCount: 0 }
+
+    const now = Date.now()
+    let bestStatus: 'typing' | 'reading' | 'waiting' | 'idle' = 'idle'
+    let bestTool: string | undefined
+    let bestToolName: string | undefined
+    let bestAnimation: 'typing' | 'reading' | undefined
+
+    for (const file of jsonlFiles) {
+      const filePath = path.join(sessionsDir, file)
+      try {
+        const stat = await fs.stat(filePath)
+        const ageMs = now - stat.mtimeMs
+        if (ageMs > 30 * 60 * 1000) continue
+
+        if (ageMs < ACTIVE_THRESHOLD_MS) {
+          const { activeTools, isGenerating } = await parseTranscriptToolState(filePath)
+          if (activeTools.length > 0) {
+            const last = activeTools[activeTools.length - 1]
+            bestStatus = last.animation
+            bestTool = last.status
+            bestToolName = last.name
+            bestAnimation = last.animation
+            break
+          } else if (isGenerating) {
+            bestStatus = 'typing'
+            bestTool = 'Thinking...'
+            bestAnimation = 'typing'
+            break
+          } else {
+            bestStatus = 'typing'
+            bestTool = 'Thinking...'
+            bestAnimation = 'typing'
+            break
+          }
+        } else if (bestStatus === 'idle') {
+          bestStatus = 'waiting'
+        }
+      } catch { /* skip */ }
     }
+    return { status: bestStatus, currentTool: bestTool, currentToolName: bestToolName, animation: bestAnimation, sessionCount: jsonlFiles.length }
+  } catch {
+    return { status: 'idle', sessionCount: 0 }
   }
-  return null
+}
+
+async function findActiveSpawns(agentId: string): Promise<string[]> {
+  const sessionsDir = path.join(HOME, '.openclaw', 'agents', agentId, 'sessions')
+  const spawns: string[] = []
+  try {
+    const files = await fs.readdir(sessionsDir)
+    const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
+    const now = Date.now()
+
+    for (const file of jsonlFiles) {
+      const filePath = path.join(sessionsDir, file)
+      try {
+        const stat = await fs.stat(filePath)
+        if (now - stat.mtimeMs > 5 * 60 * 1000) continue
+
+        const content = await fs.readFile(filePath, 'utf-8')
+        const lines = content.trim().split('\n').filter(Boolean)
+        const pendingSpawns = new Map<string, string>()
+
+        for (let i = Math.max(0, lines.length - 100); i < lines.length; i++) {
+          try {
+            const record = JSON.parse(lines[i])
+            const msgContent = record.message?.content ?? record.content
+            const isAssistant = record.type === 'assistant' ||
+              (record.type === 'message' && record.message?.role === 'assistant')
+
+            if (isAssistant && Array.isArray(msgContent)) {
+              for (const b of msgContent as Array<{
+                type: string; id?: string; name?: string; input?: Record<string, unknown>
+              }>) {
+                if ((b.type === 'tool_use' || b.type === 'toolCall') &&
+                    b.name === 'sessions_spawn' && b.id && b.input?.agentId) {
+                  pendingSpawns.set(b.id, String(b.input.agentId))
+                }
+              }
+            }
+
+            const isUser = record.type === 'user' || (record.type === 'message' && record.message?.role === 'user')
+            if (isUser && typeof msgContent === 'string') {
+              if (msgContent.includes('completed successfully') || msgContent.includes('status: failed')) {
+                const keysToDelete: string[] = []
+                pendingSpawns.forEach((targetAgent, toolId) => {
+                  if (msgContent.includes(targetAgent)) keysToDelete.push(toolId)
+                })
+                keysToDelete.forEach(k => pendingSpawns.delete(k))
+              }
+            }
+          } catch { /* skip */ }
+        }
+
+        pendingSpawns.forEach((targetAgent) => {
+          if (!spawns.includes(targetAgent)) spawns.push(targetAgent)
+        })
+      } catch { /* skip */ }
+    }
+  } catch { /* no sessions dir */ }
+  return spawns
 }
 
 export async function GET() {
   try {
-    // Load configured agents from OpenClaw config (same source as Agents page)
-    let agentList: Array<{ id?: string; identity?: { name?: string; emoji?: string } }> = []
+    let agentList: Array<{
+      id?: string; name?: string
+      identity?: { name?: string; emoji?: string }
+    }> = []
     try {
       const configBuf = await fs.readFile(OPENCLAW_CONFIG, 'utf-8')
-      const openclawConfig = JSON.parse(configBuf)
-      agentList = openclawConfig?.agents?.list ?? (Array.isArray(openclawConfig?.agents) ? openclawConfig.agents : [])
-    } catch {
-      /* config not found or invalid */
-    }
+      const config = JSON.parse(configBuf)
+      agentList = config?.agents?.list ?? []
+    } catch { /* config not found */ }
 
-    const [subRes, sessionsRes] = await Promise.allSettled([
-      invokeGatewayTool({ tool: 'subagents', args: { action: 'list' } }),
-      invokeGatewayTool({ tool: 'sessions_list', args: { limit: 20, messageLimit: 0 } }),
-    ])
-
-    const agents: AgentWithTools[] = []
-    const subagents = subRes.status === 'fulfilled'
-      ? (subRes.value?.sessions || subRes.value?.result?.sessions || [])
-      : []
-    const rawSessions = sessionsRes.status === 'fulfilled' ? sessionsRes.value : null
-    const sessions = Array.isArray(rawSessions)
-      ? rawSessions
-      : (rawSessions?.sessions || rawSessions?.details?.sessions || [])
-
-    const emojiMap: Record<string, string> = { builder: '🪼', advisor: '💭', main: '🦑' }
-    const nameMap: Record<string, string> = { builder: 'Patrick', advisor: 'Dave', main: 'OpenClaw' }
-
-    // Track which configured agents have active sessions
-    const seenAgentIds = new Set<string>()
-    // Track sessions for collaboration detection
-    const agentSessions = new Map<string, string[]>() // agentId → sessionIds
-
-    // Main sessions (builder:main etc.) → agents
-    for (let i = 0; i < sessions.length; i++) {
-      const s = sessions[i] as { key?: string; sessionId?: string; label?: string; model?: string; agentId?: string }
-      const key = s.key || ''
-      const sessionId = s.sessionId
-      const agentId = s.agentId || (key.includes('builder') ? 'builder' : key.includes('main') ? 'main' : 'advisor')
-      const emoji = emojiMap[agentId] || '🤖'
-      const name = s.label || nameMap[agentId] || agentId
-      const isSubagent = key.includes('subagent')
-
-      // Skip subagent sessions for main agent tracking
-      if (!isSubagent) seenAgentIds.add(agentId)
-
-      let status: AgentWithTools['status'] = 'idle'
-      let currentTool: string | undefined
-      let currentToolName: string | undefined
-      let animation: 'typing' | 'reading' | undefined
-
-      if (sessionId) {
-        const jsonlPath = await findJsonlForSession(sessionId)
-        if (jsonlPath) {
-          const { activeTools, isGenerating } = await parseTranscriptToolState(jsonlPath)
-
-          // Working only when actually typing (generating) or using tools; idle when connection exists but no outgoing work
-          if (activeTools.length > 0) {
-            const last = activeTools[activeTools.length - 1]
-            status = last.animation
-            currentTool = last.status
-            currentToolName = last.name
-            animation = last.animation
-          } else if (isGenerating) {
-            status = 'typing'
-            animation = 'typing'
-          }
-        }
-      }
-
-      agents.push({
-        id: `session-${sessionId || i}`,
-        name,
-        emoji,
-        status,
-        currentTool,
-        currentToolName,
-        animation,
-        isSubagent,
-      })
-    }
-
-    // Always ensure configured agents appear (even if no active session)
+    const agentInfo = new Map<string, { name: string; emoji: string }>()
     for (const a of agentList) {
-      const aid = a.id || 'unknown'
-      if (!seenAgentIds.has(aid)) {
-        agents.push({
-          id: `config-${aid}`,
-          name: a.identity?.name || aid,
-          emoji: a.identity?.emoji || emojiMap[aid] || '🤖',
-          status: 'idle',
-        })
-      }
+      const id = a.id || 'unknown'
+      agentInfo.set(id, { name: a.identity?.name || a.name || id, emoji: a.identity?.emoji || '🤖' })
     }
 
-    // Build sessionKey → main agent id map for parent lookup
-    const keyToAgentId = new Map<string, string>()
-    for (let j = 0; j < sessions.length; j++) {
-      const s = sessions[j] as { sessionId?: string; key?: string }
-      if (!s.key || s.key.includes('subagent')) continue
-      keyToAgentId.set(s.key, `session-${s.sessionId || j}`)
-    }
-    // Subagents from subagents API — infer parent from sessionKey (e.g. builder:main:subagent:uuid → builder:main)
-    for (let i = 0; i < subagents.length; i++) {
-      const sub = subagents[i] as { sessionKey?: string; label?: string; task?: string; status?: string; parentSessionKey?: string }
-      const label = sub.label || sub.sessionKey || `Sub-agent ${i + 1}`
-      const subStatus = sub.status === 'running' ? 'typing' : 'idle'
-      let parentId: string | undefined
-      const sk = sub.sessionKey || sub.parentSessionKey
-      if (sk) {
-        const beforeSub = sk.split(':subagent')[0]
-        if (beforeSub) {
-          parentId = keyToAgentId.get(beforeSub)
-          if (!parentId && beforeSub.includes(':')) {
-            parentId = keyToAgentId.get(beforeSub)
-          }
-          if (!parentId) {
-            const prefix = beforeSub.split(':')[0]
-            parentId = Array.from(keyToAgentId.entries()).find(([k]) => k.startsWith(prefix || ''))?.[1]
-          }
-        }
-      }
-      agents.push({
-        id: `sub-${sub.sessionKey || i}`,
-        name: label,
-        emoji: '⚡',
-        status: subStatus,
-        currentTool: sub.task,
-        isSubagent: true,
-        parentId,
-        animation: subStatus === 'typing' ? 'typing' : undefined,
+    const agentStatuses = new Map<string, AgentStatus>()
+    for (const configAgent of agentList) {
+      const aid = configAgent.id || 'unknown'
+      const info = agentInfo.get(aid)!
+      const activity = await getAgentActivityFromDisk(aid)
+      agentStatuses.set(aid, {
+        id: aid, name: info.name, emoji: info.emoji,
+        status: activity.status, currentTool: activity.currentTool,
+        currentToolName: activity.currentToolName, animation: activity.animation,
+        activeSessions: activity.sessionCount,
       })
     }
 
+    // Cross-reference: if agent B is active AND was spawned by agent A → mark A as chatting
+    const agentIds = Array.from(agentStatuses.keys())
+    for (const aid of agentIds) {
+      const activeSpawns = await findActiveSpawns(aid)
+      for (const targetId of activeSpawns) {
+        const target = agentStatuses.get(targetId)
+        if (target && (target.status === 'typing' || target.status === 'reading')) {
+          const parent = agentStatuses.get(aid)!
+          if (parent.status === 'idle' || parent.status === 'waiting') {
+            const targetInfo = agentInfo.get(targetId)
+            parent.status = 'typing'
+            parent.animation = 'typing'
+            parent.currentTool = `Chatting with ${targetInfo?.name || targetId} ${targetInfo?.emoji || ''}`
+            target.isSubagent = true
+            target.parentId = aid
+          }
+        }
+      }
+    }
+
+    const agents = Array.from(agentStatuses.values())
     return NextResponse.json({ agents })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'

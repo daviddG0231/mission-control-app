@@ -100,7 +100,7 @@ export default function UsagePage() {
   const filteredSessions = useMemo(() => {
     return sessions.filter((s) => {
       const raw = s.updatedAt
-      if (raw == null || raw === '') return false
+      if (raw == null || String(raw) === '') return false
       const t = typeof raw === 'number' ? raw : new Date(raw).getTime()
       return t >= rangeStart && t <= rangeEnd
     })

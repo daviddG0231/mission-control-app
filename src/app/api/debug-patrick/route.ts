@@ -8,7 +8,7 @@ const SESSIONS_DIRS = [
 ]
 
 const TYPING_TOOLS = new Set(['Write', 'Edit', 'exec', 'Bash', 'browser', 'sessions_spawn', 'message', 'tts'])
-const READING_TOOLS = new Set(['Read', 'Grep', 'Glob', 'web_fetch', 'web_search', 'memory_search'])
+// const READING_TOOLS = new Set(['Read', 'Grep', 'Glob', 'web_fetch', 'web_search', 'memory_search'])
 
 function formatToolStatus(name: string, input: Record<string, unknown>): string {
   switch (name) {
@@ -39,7 +39,7 @@ async function findJsonlForSession(sessionId: string): Promise<string | null> {
 async function parseTranscriptToolState(jsonlPath: string): Promise<{
   activeTools: Array<{ name: string; status: string; animation: 'typing' | 'reading' }>
   isWaiting: boolean
-  debug: any[]
+  debug: unknown[]
 }> {
   try {
     const content = await fs.readFile(jsonlPath, 'utf-8')
@@ -47,7 +47,7 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
     const activeToolIds = new Set<string>()
     const toolStatuses = new Map<string, { name: string; status: string; animation: 'typing' | 'reading' }>()
     let isWaiting = false
-    const debug: any[] = []
+    const debug: unknown[] = []
 
     for (let i = lines.length - 1; i >= 0 && i >= lines.length - 50; i--) {
       try {

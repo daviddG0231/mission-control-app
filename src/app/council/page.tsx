@@ -30,6 +30,7 @@ interface ConfigResponse {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
     month: 'short',
@@ -46,28 +47,48 @@ function formatNumber(num: number): string {
 }
 
 const ROLE_MAP: Record<string, string> = {
-  builder: 'Builder & Orchestrator',
-  advisor: 'Strategic Advisor',
+  builder:  'CEO & Orchestrator',
+  cto:      'CTO — Architecture & Tech Strategy',
+  coo:      'COO — Operations & Process',
+  backend:  'Backend Developer',
+  frontend: 'Frontend Developer',
+  qa:       'QA Engineer',
 }
 
 const DEFAULT_DESCRIPTION: Record<string, string> = {
-  builder: 'Leads implementation, coordinates work streams, and ensures technical excellence',
-  advisor: 'Provides strategic guidance, long-term thinking, and quality oversight',
+  builder:  'Leads the team, orchestrates work streams, and ensures mission success',
+  cto:      'Owns architecture decisions, tech strategy, and engineering excellence',
+  coo:      'Keeps operations running smoothly — process, planning, and execution',
+  backend:  'Builds robust APIs, data pipelines, and server-side systems',
+  frontend: 'Crafts beautiful, responsive UIs with pixel-perfect precision',
+  qa:       'Ensures quality at every step — testing, review, and bug hunting',
 }
 
 const STRENGTHS_MAP: Record<string, string[]> = {
-  builder: ['Architecture', 'Implementation', 'Coordination'],
-  advisor: ['Strategy', 'Planning', 'Quality'],
+  builder:  ['Orchestration', 'Strategy', 'Coordination'],
+  cto:      ['Architecture', 'Tech Strategy', 'Engineering'],
+  coo:      ['Operations', 'Planning', 'Process'],
+  backend:  ['APIs', 'Databases', 'Performance'],
+  frontend: ['UI/UX', 'React', 'Animations'],
+  qa:       ['Testing', 'Quality', 'Review'],
 }
 
 const EMOJI_MAP: Record<string, string> = {
-  builder: '🪼',
-  advisor: '💭',
+  builder:  '🪼',
+  cto:      '🖥️',
+  coo:      '📋',
+  backend:  '⚙️',
+  frontend: '🎨',
+  qa:       '🔍',
 }
 
 const COLOR_MAP: Record<string, string> = {
-  builder: 'var(--accent)',
-  advisor: 'var(--success)',
+  builder:  'var(--accent)',
+  cto:      '#3b82f6',
+  coo:      '#8b5cf6',
+  backend:  '#f59e0b',
+  frontend: '#ec4899',
+  qa:       'var(--success)',
 }
 
 const COUNCIL_PRINCIPLES = [
