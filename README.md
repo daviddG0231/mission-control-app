@@ -53,11 +53,11 @@ grep "gateway.token" ~/.openclaw/openclaw.json
 
 ### 3. Set up the Agent Office (optional)
 
-The Agent Office uses [pixel-agents](https://github.com/nicholasgriffintn/pixel-agents) for the pixel-art visualization.
+The Agent Office uses [pixel-agents](https://github.com/pablodelucca/pixel-agents) by [@pablodelucca](https://github.com/pablodelucca) for the pixel-art visualization.
 
 ```bash
 # Clone pixel-agents into the project root
-git clone https://github.com/nicholasgriffintn/pixel-agents.git
+git clone https://github.com/pablodelucca/pixel-agents.git
 ```
 
 The office also needs character sprites in `public/office-view/assets/characters/`. The default sprites (`char_0.png` through `char_5.png`) come from pixel-agents. You can add custom sprites as `char_6.png`, `char_7.png`, etc.
@@ -132,6 +132,11 @@ The Agent Office iframe renders pixel-art characters using sprite sheets, with r
 - **Styling:** Tailwind CSS + CSS variables for theming
 - **Agent Visualization:** Canvas-based pixel-art renderer (pixel-agents)
 - **State:** Server-side API routes + client-side polling
+
+## Credits
+
+- **[pixel-agents](https://github.com/pablodelucca/pixel-agents)** by [@pablodelucca](https://github.com/pablodelucca) — Pixel-art agent visualization engine used in the Agent Office
+- **[OpenClaw](https://github.com/openclaw/openclaw)** — AI agent orchestration platform
 
 ## License
 
