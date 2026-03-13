@@ -23,6 +23,7 @@ import {
   Radar,
   GitBranch,
   GitPullRequestDraft,
+  Network,
   MessageCircle,
   TerminalSquare,
   Settings2,
@@ -59,6 +60,7 @@ const NAV_SECTIONS = [
       { label: 'People', href: '/people', icon: UserCircle },
       { label: 'Agent Office', href: '/office', icon: Building2 },
       { label: 'Team', href: '/team', icon: UsersRound },
+      { label: 'Hierarchy', href: '/hierarchy', icon: Network },
     ],
   },
   {
