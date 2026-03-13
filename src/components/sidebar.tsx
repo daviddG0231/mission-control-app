@@ -61,6 +61,7 @@ const NAV_SECTIONS = [
       { label: 'Agent Office', href: '/office', icon: Building2 },
       { label: 'Team', href: '/team', icon: UsersRound },
       { label: 'Hierarchy', href: '/hierarchy', icon: Network },
+      { label: 'Chat', href: '/chat', icon: MessageSquare },
     ],
   },
   {
