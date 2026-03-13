@@ -88,10 +88,12 @@ export default function OfficePage() {
           type: 'agentCreated',
           id: numId,
           folderName: agent?.name || agentId,
-          characterIndex: resolvedIndex,
+          palette: resolvedIndex,
+          hueShift: 0,
+          skipSpawnEffect: true,
         }, '*')
         console.log(`[Office] Character change: ${agentId} → sprite ${resolvedIndex}`)
-      }, 250)
+      }, 500)
     }
   }, [])
 
@@ -425,7 +427,9 @@ export default function OfficePage() {
           type: 'agentCreated',
           id: numId,
           folderName: a.name,
-          characterIndex: charIndex,
+          palette: charIndex,
+          hueShift: 0,
+          skipSpawnEffect: !prevIds.size, // skip animation on initial load
         }, '*')
       }
     }
@@ -467,12 +471,12 @@ export default function OfficePage() {
     prevIds.clear()
     mainAgents.forEach((a) => prevIds.add(a.id))
 
-    // Sync subagents — create character beside parent when agent is talking to another agent
+    // Sync subagents — walk-to-chat animation when an agent talks to another existing agent
     const subagents = agents.filter((a) => a.isSubagent && a.parentId)
     const currentSubIds = new Set(subagents.map((s) => s.id))
     const prevSubIds = prevSubagentIdsRef.current
 
-    // Remove subagents that left
+    // Remove subagents that left — clear chat bubbles and let agents roam again
     const parentMap = subagentParentMapRef.current
     for (const id of Array.from(prevSubIds)) {
       if (!currentSubIds.has(id)) {
@@ -480,7 +484,19 @@ export default function OfficePage() {
         if (parentId) {
           const parentNumId = idMap.get(parentId)
           if (parentNumId != null) {
+            win.postMessage({ type: 'clearChatBubble', id: parentNumId }, '*')
             win.postMessage({ type: 'subagentClear', id: parentNumId, parentToolId: `oc-sub-${id}` }, '*')
+          }
+          // Check if the subagent matches a main agent — clear their chat bubble too
+          const matchingAgent = mainAgents.find((a) => {
+            const subAgent = agents.find((s) => s.id === id)
+            return subAgent && a.name === subAgent.name
+          })
+          if (matchingAgent) {
+            const matchNumId = idMap.get(matchingAgent.id)
+            if (matchNumId != null) {
+              win.postMessage({ type: 'clearChatBubble', id: matchNumId }, '*')
+            }
           }
           parentMap.delete(id)
         }
@@ -488,18 +504,35 @@ export default function OfficePage() {
       }
     }
 
-    // Add new subagents — they appear beside parent (officeState prefers adjacent seats)
+    // Add new subagents — if it matches a main agent, walk-to-chat instead of spawning new character
     for (const sub of subagents) {
       const parentNumId = sub.parentId ? idMap.get(sub.parentId) : undefined
       if (!parentNumId) continue
       if (!prevSubIds.has(sub.id) && sub.parentId) {
         parentMap.set(sub.id, sub.parentId)
-        win.postMessage({
-          type: 'agentToolStart',
-          id: parentNumId,
-          toolId: `oc-sub-${sub.id}`,
-          status: `Subtask: ${sub.name}`,
-        }, '*')
+
+        // Check if subagent name matches an existing main agent (e.g. "Dave 🛠️")
+        const matchingAgent = mainAgents.find((a) => a.name === sub.name && a.id !== sub.parentId)
+        const matchNumId = matchingAgent ? idMap.get(matchingAgent.id) : undefined
+
+        if (matchNumId != null) {
+          // Walk-to-chat: existing agent walks to parent, both get chat bubbles
+          win.postMessage({ type: 'walkToAgent', id: matchNumId, targetId: parentNumId }, '*')
+          // Show chat bubbles on both after a short delay for walking
+          setTimeout(() => {
+            win.postMessage({ type: 'showChatBubble', id: matchNumId }, '*')
+            win.postMessage({ type: 'showChatBubble', id: parentNumId }, '*')
+          }, 1500)
+        } else {
+          // No matching agent — create subagent character the old way
+          win.postMessage({
+            type: 'agentToolStart',
+            id: parentNumId,
+            toolId: `oc-sub-${sub.id}`,
+            status: `Subtask: ${sub.name}`,
+          }, '*')
+        }
+
         if (sub.status === 'typing') {
           win.postMessage({ type: 'agentStatus', id: parentNumId, status: 'active' }, '*')
         }
