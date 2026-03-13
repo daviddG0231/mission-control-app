@@ -161,10 +161,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'agentId and message required' }, { status: 400 })
     }
     
-    // Spawn a one-shot task for the agent via Patrick (builder)
-    // Patrick delegates to the agent using sessions_spawn with agentId
+    // Look up agent identity for the system context
+    const agents = await getAgentList()
+    const agent = agents.find(a => a.id === agentId)
+    const identityLine = agent 
+      ? `You are ${agent.name} ${agent.emoji}${agent.role ? ` (${agent.role})` : ''}. Stay in character. Respond to David's message:\n\n`
+      : ''
+    
+    // Spawn a one-shot task for the agent
     const result = await gatewayInvoke('sessions_spawn', {
-      task: message.trim(),
+      task: `${identityLine}${message.trim()}`,
       runtime: 'subagent',
       mode: 'run',
       agentId,
