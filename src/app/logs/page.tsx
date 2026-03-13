@@ -103,7 +103,7 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 h-screen flex flex-col">
+    <div className="p-3 md:p-6 space-y-6 h-screen flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between flex-shrink-0">
         <div>

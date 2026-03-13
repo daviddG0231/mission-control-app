@@ -28,12 +28,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Expand PATH to include Homebrew so openclaw, gh, node etc. are available
+    const shellPath = `/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`
     const { stdout, stderr } = await execAsync(command, {
       timeout: 30000,
       maxBuffer: 1024 * 1024, // 1MB
-      cwd: cwd || process.env.HOME || process.env.HOME || '/root',
-      env: { ...process.env, TERM: 'xterm-256color' },
-      shell: '/bin/zsh'
+      cwd: (cwd === '~' || !cwd) ? (process.env.HOME || '/root') : cwd.replace(/^~/, process.env.HOME || '/root'),
+      env: { 
+        ...process.env, 
+        TERM: 'xterm-256color',
+        PATH: shellPath,
+      },
     })
 
     return NextResponse.json({

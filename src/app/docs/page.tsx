@@ -173,9 +173,9 @@ export default function DocsPage() {
   }
   
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
       {/* Docs Tree Sidebar */}
-      <div className="w-80 border-r border-[var(--border)] bg-[var(--bg-card)] flex flex-col">
+      <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-[var(--border)] bg-[var(--bg-card)] flex flex-col max-h-[40vh] md:max-h-none">
         <div className="p-4 border-b border-[var(--border)]">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg font-bold text-white flex items-center gap-2">

@@ -282,7 +282,7 @@ export default function PipelinePage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-6">
       <div className="flex items-center gap-3 flex-wrap">
         <GitBranch className="w-6 h-6 text-[var(--accent)]" />
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Pipeline</h1>

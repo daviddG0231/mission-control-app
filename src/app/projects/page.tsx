@@ -11,10 +11,15 @@ import {
   Layers,
   Folder,
   Play,
+  Square,
   ExternalLink,
   ChevronRight,
   X,
   Loader2,
+  Radio,
+  Terminal,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +34,15 @@ interface ProjectData {
   packageName?: string
   packageDescription?: string
   techStack: string[]
+  port?: number
+}
+
+interface RunningProject {
+  pid: number
+  port: number
+  cwd: string
+  command: string
+  projectName: string
 }
 
 interface ProjectsResponse {
@@ -49,11 +63,15 @@ function ProjectCard({
   onBrowse,
   onAction,
   actionLoading,
+  runningInfo,
+  onStop,
 }: {
   project: ProjectData
   onBrowse: () => void
   onAction: (action: string) => void
   actionLoading: string | null
+  runningInfo?: RunningProject
+  onStop?: (pid: number, projectPath: string) => void
 }) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -66,6 +84,39 @@ function ProjectCard({
     return date.toLocaleDateString()
   }
 
+  const [showLog, setShowLog] = useState(false)
+  const [logContent, setLogContent] = useState('')
+  const logRef = React.useRef<HTMLPreElement>(null)
+
+  // Poll log file when expanded and running
+  React.useEffect(() => {
+    if (!showLog || !runningInfo) {
+      setLogContent('')
+      return
+    }
+    const fetchLog = async () => {
+      try {
+        const res = await fetch(`/api/projects/logs?path=${encodeURIComponent(project.path)}&lines=30`)
+        const json = await res.json()
+        if (json.log) {
+          setLogContent(json.log)
+          // Auto-scroll to bottom
+          if (logRef.current) {
+            logRef.current.scrollTop = logRef.current.scrollHeight
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    fetchLog()
+    const interval = setInterval(fetchLog, 2000)
+    return () => clearInterval(interval)
+  }, [showLog, runningInfo, project.path])
+
+  // Auto-show log when server starts
+  React.useEffect(() => {
+    if (runningInfo) setShowLog(true)
+  }, [runningInfo])
+
   return (
     <div className="group bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--accent)]/30 transition-all">
       <div className="flex items-start justify-between mb-3">
@@ -73,7 +124,18 @@ function ProjectCard({
           <FolderOpen className="w-5 h-5 text-[var(--text-secondary)] group-hover:text-[var(--accent)] transition" />
           <h3 className="text-sm font-semibold text-white">{project.name}</h3>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          {project.port && (
+            <span className={cn(
+              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border',
+              runningInfo
+                ? 'bg-[var(--success)]/15 text-[var(--success)] border-[var(--success)]/30'
+                : 'bg-[var(--bg-hover)] text-[var(--text-secondary)] border-[var(--border)]'
+            )}>
+              {runningInfo && <Radio className="w-2.5 h-2.5 animate-pulse" />}
+              :{runningInfo?.port || project.port}
+            </span>
+          )}
           {project.hasGit && <GitBranch className="w-3 h-3 text-[var(--text-secondary)]" />}
           {project.hasReadme && <FileText className="w-3 h-3 text-[var(--text-secondary)]" />}
         </div>
@@ -132,7 +194,7 @@ function ProjectCard({
           {actionLoading === 'open-cursor' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
           Open
         </button>
-        {(project.hasPackageJson || project.hasPyprojectToml) && (
+        {(project.hasPackageJson || project.hasPyprojectToml) && !runningInfo && (
           <button
             onClick={(e) => { e.stopPropagation(); onAction('run-dev') }}
             disabled={!!actionLoading}
@@ -142,7 +204,68 @@ function ProjectCard({
             Run
           </button>
         )}
+        {runningInfo && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onStop?.(runningInfo.pid, project.path) }}
+            disabled={!!actionLoading}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs text-red-400 hover:text-red-300 transition disabled:opacity-50"
+          >
+            {actionLoading === 'stop' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
+            Stop :{runningInfo.port}
+          </button>
+        )}
+        {runningInfo && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowLog(!showLog) }}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-[var(--bg-hover)] hover:bg-[var(--accent)]/20 text-xs text-[var(--text-secondary)] hover:text-white transition"
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            {showLog ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+        )}
       </div>
+
+      {/* Inline Terminal Output */}
+      {showLog && runningInfo && (
+        <div className="mt-3 pt-3 border-t border-[var(--border)]">
+          <div className="flex items-center gap-2 mb-2">
+            <Terminal className="w-3.5 h-3.5 text-[var(--success)]" />
+            <span className="text-[10px] font-mono text-[var(--success)]">
+              Running on :{runningInfo.port}
+            </span>
+            <span className="text-[10px] text-[var(--text-secondary)] ml-auto font-mono">
+              PID {runningInfo.pid}
+            </span>
+          </div>
+          {/* QR Code for Expo apps */}
+          {(() => {
+            const expoMatch = logContent.match(/exp:\/\/[\d.]+:\d+/)
+            const metroMatch = logContent.match(/Waiting on (http:\/\/localhost:\d+)/)
+            if (expoMatch || metroMatch) {
+              const expoUrl = expoMatch?.[0] || `exp://100.117.80.95:${runningInfo.port}`
+              return (
+                <div className="flex flex-col items-center gap-2 mb-3 p-3 bg-white rounded-lg">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(expoUrl)}`}
+                    alt="Expo QR Code"
+                    className="w-[180px] h-[180px]"
+                  />
+                  <span className="text-[10px] font-mono text-black/70 text-center break-all">
+                    {expoUrl}
+                  </span>
+                </div>
+              )
+            }
+            return null
+          })()}
+          <pre
+            ref={logRef}
+            className="bg-black/60 rounded-lg p-3 text-[10px] font-mono text-green-400/90 max-h-[200px] overflow-auto whitespace-pre-wrap break-all scrollbar-thin scrollbar-thumb-white/10"
+          >
+            {logContent || 'Loading...'}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }
@@ -173,6 +296,7 @@ interface BrowseItem {
 
 export default function ProjectsPage() {
   const { data, loading, error } = useGatewayData<ProjectsResponse>('/api/projects', 30000)
+  const [runningProjects, setRunningProjects] = useState<RunningProject[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTech, setSelectedTech] = useState<string | null>(null)
   const [browseProject, setBrowseProject] = useState<ProjectData | null>(null)
@@ -180,6 +304,42 @@ export default function ProjectsPage() {
   const [browseItems, setBrowseItems] = useState<BrowseItem[]>([])
   const [browseLoading, setBrowseLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  // Fetch running dev servers every 5 seconds
+  React.useEffect(() => {
+    const fetchRunning = async () => {
+      try {
+        const res = await fetch('/api/projects/running')
+        const json = await res.json()
+        setRunningProjects(json.running || [])
+      } catch { /* ignore */ }
+    }
+    fetchRunning()
+    const interval = setInterval(fetchRunning, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const getRunningInfo = (project: ProjectData): RunningProject | undefined => {
+    return runningProjects.find(
+      (r) => r.cwd.includes(project.name) || r.projectName === project.name
+    )
+  }
+
+  const handleStop = async (pid: number, projectPath: string) => {
+    setActionLoading('stop')
+    try {
+      await fetch('/api/projects/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectPath, action: 'stop', pid }),
+      })
+      // Refresh running list immediately
+      const res = await fetch('/api/projects/running')
+      const json = await res.json()
+      setRunningProjects(json.running || [])
+    } catch { /* ignore */ }
+    finally { setActionLoading(null) }
+  }
 
   const fetchBrowseContents = async (targetPath: string) => {
     setBrowseLoading(true)
@@ -215,6 +375,18 @@ export default function ProjectsPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Action failed')
+
+      // After starting a dev server, refresh running list quickly
+      if (action === 'run-dev') {
+        // Give the server a moment to start listening, then refresh
+        setTimeout(async () => {
+          try {
+            const runRes = await fetch('/api/projects/running')
+            const runJson = await runRes.json()
+            setRunningProjects(runJson.running || [])
+          } catch {}
+        }, 2000)
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Action failed')
     } finally {
@@ -289,7 +461,7 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -362,6 +534,8 @@ export default function ProjectsPage() {
             onBrowse={() => openBrowse(project)}
             onAction={(action) => handleProjectAction(project, action)}
             actionLoading={actionLoading}
+            runningInfo={getRunningInfo(project)}
+            onStop={(pid, projectPath) => handleStop(pid, projectPath)}
           />
         ))}
       </div>

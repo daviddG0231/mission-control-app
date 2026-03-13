@@ -148,10 +148,10 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6 overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-lg md:text-2xl font-bold text-white flex items-center gap-2 md:gap-3">
             <Calendar className="w-6 h-6 text-[var(--accent)]" />
             Cron Calendar
           </h1>
@@ -235,12 +235,12 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar Body */}
-        <div className="grid grid-cols-7 min-h-[400px]">
+        <div className="grid grid-cols-7 min-h-[400px] overflow-x-auto">
           {weekDates.map((date, dayIndex) => (
             <div
               key={dayIndex}
               className={cn(
-                "p-3 border-r border-[var(--border)] last:border-r-0 space-y-2",
+                "p-1 md:p-3 border-r border-[var(--border)] last:border-r-0 space-y-1 md:space-y-2 min-w-[52px]",
                 isToday(date) ? "bg-[var(--accent)]/5" : ""
               )}
             >

@@ -215,27 +215,27 @@ export default function TasksPage() {
   const projects = Array.from(new Set(columns.flatMap((c) => c.tasks.map((t) => t.project?.name).filter(Boolean))))
 
   return (
-    <div className="flex h-[calc(100vh-52px)]">
+    <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-52px)]">
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Stats bar */}
-        <div className="px-6 pt-5 pb-3">
-          <div className="flex items-baseline gap-6">
+        <div className="px-3 md:px-6 pt-4 md:pt-5 pb-3">
+          <div className="flex items-baseline gap-3 md:gap-6 flex-wrap">
             <div>
-              <span className="text-4xl font-bold text-white">{thisWeek}</span>
-              <span className="text-xs text-[var(--text-secondary)] ml-2">This week</span>
+              <span className="text-2xl md:text-4xl font-bold text-white">{thisWeek}</span>
+              <span className="text-[10px] md:text-xs text-[var(--text-secondary)] ml-1 md:ml-2">This week</span>
             </div>
             <div>
-              <span className="text-4xl font-bold text-[var(--accent)]">{inProgressCount}</span>
-              <span className="text-xs text-[var(--text-secondary)] ml-2">In progress</span>
+              <span className="text-2xl md:text-4xl font-bold text-[var(--accent)]">{inProgressCount}</span>
+              <span className="text-[10px] md:text-xs text-[var(--text-secondary)] ml-1 md:ml-2">In progress</span>
             </div>
             <div>
-              <span className="text-4xl font-bold text-white">{totalTasks}</span>
-              <span className="text-xs text-[var(--text-secondary)] ml-2">Total</span>
+              <span className="text-2xl md:text-4xl font-bold text-white">{totalTasks}</span>
+              <span className="text-[10px] md:text-xs text-[var(--text-secondary)] ml-1 md:ml-2">Total</span>
             </div>
             <div>
-              <span className="text-4xl font-bold text-[var(--success)]">{completion}%</span>
-              <span className="text-xs text-[var(--text-secondary)] ml-2">Completion</span>
+              <span className="text-2xl md:text-4xl font-bold text-[var(--success)]">{completion}%</span>
+              <span className="text-[10px] md:text-xs text-[var(--text-secondary)] ml-1 md:ml-2">Completion</span>
             </div>
           </div>
         </div>
@@ -400,7 +400,7 @@ export default function TasksPage() {
       </div>
 
       {/* Live Activity sidebar */}
-      <div className="w-[300px] border-l border-[var(--border)] shrink-0">
+      <div className="w-full md:w-[300px] border-t md:border-t-0 md:border-l border-[var(--border)] shrink-0">
         <LiveActivity />
       </div>
     </div>

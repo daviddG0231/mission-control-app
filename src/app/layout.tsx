@@ -1,14 +1,26 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import Sidebar from '@/components/sidebar'
-import Header from '@/components/header'
+import MobileLayout from '@/components/mobile-layout'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Mission Control — OpenClaw Dashboard',
   description: 'AI Agent Orchestration Dashboard',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Mission Control',
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#0a0a12',
 }
 
 export default function RootLayout({
@@ -19,13 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={inter.className}>
-        <Sidebar />
-        <div className="ml-[220px] min-h-screen flex flex-col">
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
-        </div>
+        <MobileLayout>
+          {children}
+        </MobileLayout>
       </body>
     </html>
   )

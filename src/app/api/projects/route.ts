@@ -14,6 +14,7 @@ export interface ProjectData {
   packageName?: string
   packageDescription?: string
   techStack: string[]
+  port?: number
 }
 
 import { WORKSPACE_PATH } from '@/lib/paths'
@@ -49,6 +50,41 @@ async function readJsonSafely(filePath: string): Promise<any> {
   } catch {
     return null
   }
+}
+
+async function detectPort(projectPath: string, hasPackageJson: boolean): Promise<number | undefined> {
+  if (!hasPackageJson) return undefined
+  const packageJson = await readJsonSafely(path.join(projectPath, 'package.json'))
+  if (!packageJson?.scripts) return undefined
+
+  // Check dev/start scripts for --port flags
+  const scripts = [packageJson.scripts.dev, packageJson.scripts.start].filter(Boolean).join(' ')
+  const portMatch = scripts.match(/--port\s+(\d+)|-p\s+(\d+)|PORT=(\d+)/)
+  if (portMatch) return parseInt(portMatch[1] || portMatch[2] || portMatch[3], 10)
+
+  // Check for common config files with port settings
+  const configFiles = [
+    { file: 'next.config.mjs', pattern: /port[:\s]+(\d+)/i },
+    { file: 'next.config.js', pattern: /port[:\s]+(\d+)/i },
+    { file: 'vite.config.ts', pattern: /port[:\s]+(\d+)/i },
+    { file: 'vite.config.js', pattern: /port[:\s]+(\d+)/i },
+    { file: 'app.json', pattern: /port[:\s]+(\d+)/i },
+  ]
+
+  for (const { file, pattern } of configFiles) {
+    try {
+      const content = await fs.readFile(path.join(projectPath, file), 'utf-8')
+      const match = content.match(pattern)
+      if (match) return parseInt(match[1], 10)
+    } catch { /* file doesn't exist */ }
+  }
+
+  // Default ports by framework
+  if (packageJson.dependencies?.next || packageJson.devDependencies?.next) return 3000
+  if (packageJson.dependencies?.vite || packageJson.devDependencies?.vite) return 5173
+  if (packageJson.dependencies?.expo) return 8081
+
+  return undefined
 }
 
 async function detectTechStack(projectPath: string, hasPackageJson: boolean, hasPyprojectToml: boolean): Promise<string[]> {
@@ -126,6 +162,7 @@ export async function GET() {
         }
         
         const techStack = await detectTechStack(projectPath, hasPackageJson, hasPyprojectToml)
+        const port = await detectPort(projectPath, hasPackageJson)
         
         projects.push({
           name: entry.name,
@@ -137,7 +174,8 @@ export async function GET() {
           lastModified: stats.mtime.toISOString(),
           packageName,
           packageDescription,
-          techStack
+          techStack,
+          port
         })
       } catch (error) {
         // Skip directories we can't read

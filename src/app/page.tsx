@@ -45,13 +45,13 @@ export default function DashboardPage() {
   const mainAgents = (officeAgentsData?.agents || []).filter(a => !a.isSubagent)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Real-time overview of your OpenClaw system
+          <h1 className="text-xl md:text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-xs md:text-sm text-[var(--text-secondary)] mt-1">
+            Real-time overview
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -61,7 +61,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: 'Active Sessions', value: sessionCount, icon: MessageSquare, color: 'var(--accent)', href: '/sessions' },
           { label: 'Agents', value: agentCount, icon: Bot, color: 'var(--success)', href: '/agents' },
@@ -73,13 +73,13 @@ export default function DashboardPage() {
             <Link
               key={stat.label}
               href={stat.href}
-              className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-5 hover:border-[var(--accent)]/30 transition group"
+              className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 md:p-5 hover:border-[var(--accent)]/30 transition group"
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">{stat.label}</span>
                 <Icon className="w-4 h-4" style={{ color: stat.color }} />
               </div>
-              <div className="text-3xl font-bold text-white group-hover:text-[var(--accent-hover)] transition">{stat.value}</div>
+              <div className="text-2xl md:text-3xl font-bold text-white group-hover:text-[var(--accent-hover)] transition">{stat.value}</div>
             </Link>
           )
         })}

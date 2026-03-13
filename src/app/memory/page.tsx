@@ -44,7 +44,7 @@ export default function MemoryPage() {
   ) || []
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
           <Brain className="w-6 h-6 text-[var(--accent)]" />

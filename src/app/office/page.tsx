@@ -510,28 +510,28 @@ export default function OfficePage() {
   }, [agents, assetsLoaded, characterMap])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="flex flex-col h-[calc(100vh-4rem)] p-3 md:p-6 overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 md:mb-4 gap-2">
         <div>
           <h1
-            className="text-2xl font-bold flex items-center gap-2"
+            className="text-lg md:text-2xl font-bold flex items-center gap-2"
             style={{
               fontFamily: 'ui-monospace, monospace',
               color: 'white',
               textShadow: '2px 2px 0 var(--accent)',
             }}
           >
-            <Building2 className="w-7 h-7 text-[var(--accent)]" />
+            <Building2 className="w-5 md:w-7 h-5 md:h-7 text-[var(--accent)]" />
             Agent Office
           </h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">
+          <p className="text-xs md:text-sm text-[var(--text-secondary)] mt-1">
             OpenClaw agents — pixel-agents office view
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
           <button
             onClick={() => setShowCharacters(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-none border-2 border-[var(--border)] hover:bg-[var(--bg-hover)]"
+            className="flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium transition-all rounded-none border-2 border-[var(--border)] hover:bg-[var(--bg-hover)]"
             style={{ background: 'var(--bg-card)', color: 'white' }}
             title="Choose character avatars"
           >
@@ -540,7 +540,7 @@ export default function OfficePage() {
           </button>
           <button
             onClick={() => { setShowTemplates(true); fetchTemplates() }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-none border-2 border-[var(--accent)] hover:bg-[var(--accent)]/20"
+            className="flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium transition-all rounded-none border-2 border-[var(--accent)] hover:bg-[var(--accent)]/20"
             style={{ background: 'var(--bg-card)', color: 'var(--accent)' }}
           >
             <LayoutGrid className="w-4 h-4" />
@@ -548,7 +548,7 @@ export default function OfficePage() {
           </button>
           <button
             onClick={handleSaveAsTemplate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-none border-2 border-[var(--accent)]/60 hover:bg-[var(--accent)]/20"
+            className="flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium transition-all rounded-none border-2 border-[var(--accent)]/60 hover:bg-[var(--accent)]/20"
             style={{ background: 'var(--bg-card)', color: 'var(--accent)' }}
             title="Save current layout as a new template"
           >
@@ -558,7 +558,7 @@ export default function OfficePage() {
           <button
             onClick={handleSaveLayout}
             disabled={savingLayout}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-none border-2 border-[var(--accent)]/60 hover:bg-[var(--accent)]/20 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium transition-all rounded-none border-2 border-[var(--accent)]/60 hover:bg-[var(--accent)]/20 disabled:opacity-50"
             style={{ background: 'var(--bg-card)', color: 'var(--accent)' }}
           >
             <Save className="w-4 h-4" />
@@ -566,7 +566,7 @@ export default function OfficePage() {
           </button>
           <button
             onClick={handleResetLayout}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-none border-2 border-[var(--border)] hover:bg-[var(--bg-hover)]"
+            className="flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium transition-all rounded-none border-2 border-[var(--border)] hover:bg-[var(--bg-hover)]"
             style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
             title="Reset to default layout"
           >
@@ -575,7 +575,7 @@ export default function OfficePage() {
           </button>
           <button
             onClick={fetchAgents}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-none border-2 border-[var(--border)] hover:bg-[var(--bg-hover)]"
+            className="flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium transition-all rounded-none border-2 border-[var(--border)] hover:bg-[var(--bg-hover)]"
             style={{ background: 'var(--bg-card)', color: 'white' }}
           >
             <RefreshCw className="w-4 h-4" />

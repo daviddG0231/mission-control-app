@@ -181,7 +181,7 @@ export default function RadarPage() {
   const allClear = alerts.length === 0 && !loading
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-6">
       <div className="flex items-center gap-3">
         <Radar className="w-6 h-6 text-[var(--accent)]" />
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Radar</h1>

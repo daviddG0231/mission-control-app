@@ -76,7 +76,7 @@ const NAV_SECTIONS = [
   },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname()
 
   return (
@@ -107,6 +107,7 @@ export default function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate}
                     className={cn(
                       'flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-all',
                       isActive
