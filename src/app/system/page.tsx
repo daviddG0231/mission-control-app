@@ -130,8 +130,8 @@ export default function SystemPage() {
     const interval = setInterval(() => {
       setStats(prev => ({
         ...prev,
-        cpu: Math.max(10, Math.min(90, prev.cpu + (Math.random() - 0.5) * 10)),
-        memory: Math.max(20, Math.min(85, prev.memory + (Math.random() - 0.5) * 5))
+        cpu: Math.round(Math.max(10, Math.min(90, prev.cpu + (Math.random() - 0.5) * 10))),
+        memory: Math.round(Math.max(20, Math.min(85, prev.memory + (Math.random() - 0.5) * 5)))
       }))
     }, 2000)
 
