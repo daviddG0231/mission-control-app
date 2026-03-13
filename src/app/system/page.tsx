@@ -117,6 +117,13 @@ export default function SystemPage() {
 
         // Fetch Tailscale status
         fetchTailscale()
+
+        // Fetch real system stats
+        const statsRes = await fetch('/api/system/stats')
+        if (statsRes.ok) {
+          const s = await statsRes.json()
+          setStats(prev => ({ ...prev, cpu: s.cpu, memory: s.memory, diskUsage: s.diskUsage }))
+        }
       } catch (error) {
         console.error('Failed to fetch system data:', error)
       } finally {
@@ -126,14 +133,16 @@ export default function SystemPage() {
 
     fetchSystemData()
     
-    // Update stats periodically
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        ...prev,
-        cpu: Math.round(Math.max(10, Math.min(90, prev.cpu + (Math.random() - 0.5) * 10))),
-        memory: Math.round(Math.max(20, Math.min(85, prev.memory + (Math.random() - 0.5) * 5)))
-      }))
-    }, 2000)
+    // Poll real stats every 5s
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/system/stats')
+        if (res.ok) {
+          const s = await res.json()
+          setStats(prev => ({ ...prev, cpu: s.cpu, memory: s.memory, diskUsage: s.diskUsage }))
+        }
+      } catch { /* ignore */ }
+    }, 5000)
 
     return () => clearInterval(interval)
   }, [])
