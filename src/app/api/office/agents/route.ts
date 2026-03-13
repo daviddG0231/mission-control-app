@@ -157,7 +157,7 @@ async function getAgentActivityFromDisk(agentId: string): Promise<{
       try {
         const stat = await fs.stat(filePath)
         const ageMs = now - stat.mtimeMs
-        if (ageMs > 30 * 60 * 1000) continue
+        if (ageMs > 2 * 60 * 1000) continue  // Only consider files modified in last 2 minutes
 
         if (ageMs < ACTIVE_THRESHOLD_MS) {
           const { activeTools, isGenerating } = await parseTranscriptToolState(filePath)
@@ -202,7 +202,7 @@ async function findActiveSpawns(agentId: string): Promise<string[]> {
       const filePath = path.join(sessionsDir, file)
       try {
         const stat = await fs.stat(filePath)
-        if (now - stat.mtimeMs > 5 * 60 * 1000) continue
+        if (now - stat.mtimeMs > 2 * 60 * 1000) continue
 
         const content = await fs.readFile(filePath, 'utf-8')
         const lines = content.trim().split('\n').filter(Boolean)
