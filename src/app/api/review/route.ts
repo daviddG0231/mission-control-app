@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Match toolCalls with results
-        for (const [tcId, call] of toolCalls) {
+        for (const [tcId, call] of Array.from(toolCalls.entries())) {
           const result = toolResults.get(tcId)
           if (result?.isError) continue // skip failed edits
 
