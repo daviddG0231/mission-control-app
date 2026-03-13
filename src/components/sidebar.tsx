@@ -22,6 +22,7 @@ import {
   Monitor,
   Radar,
   GitBranch,
+  GitPullRequestDraft,
   MessageCircle,
   TerminalSquare,
   Settings2,
@@ -48,6 +49,7 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Calendar', href: '/calendar', icon: Calendar },
       { label: 'Projects', href: '/projects', icon: FolderOpen },
+      { label: 'Code Review', href: '/review', icon: GitPullRequestDraft },
       { label: 'Memory', href: '/memory', icon: Brain },
       { label: 'Docs', href: '/docs', icon: BookOpen },
     ],
