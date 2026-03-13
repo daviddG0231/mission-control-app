@@ -16,7 +16,7 @@ import fs from 'fs/promises'
 // os import removed — using paths.ts
 
 import { OPENCLAW_CONFIG, AGENTS_DIR } from '@/lib/paths'
-const ACTIVE_THRESHOLD_MS = 15_000
+const ACTIVE_THRESHOLD_MS = 30_000
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TYPING_TOOLS = new Set(['Write', 'Edit', 'exec', 'Bash', 'browser', 'sessions_spawn', 'message', 'tts', 'canvas', 'subagents'])
@@ -70,12 +70,17 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
     const toolStatuses = new Map<string, { name: string; status: string; animation: 'typing' | 'reading' }>()
     let isGenerating = false
 
-    for (let i = lines.length - 1; i >= 0 && i >= lines.length - 200; i--) {
+    // Take last 200 lines then iterate FORWARD so toolResults clear their toolCalls
+    const startIdx = Math.max(0, lines.length - 200)
+    for (let i = startIdx; i < lines.length; i++) {
       try {
         const record = JSON.parse(lines[i])
         if (record.type === 'system' && record.subtype === 'turn_duration') {
-          isGenerating = true
-          break
+          // Turn completed — clear everything
+          activeToolIds.clear()
+          toolStatuses.clear()
+          isGenerating = false
+          continue
         }
         const msgContent = record.message?.content ?? record.content
         const isAssistant = record.type === 'assistant' ||
@@ -87,27 +92,29 @@ async function parseTranscriptToolState(jsonlPath: string): Promise<{
             input?: Record<string, unknown>; arguments?: Record<string, unknown>
           }>) {
             if ((b.type === 'tool_use' || b.type === 'toolCall') && b.id && b.name) {
-              if (!activeToolIds.has(b.id)) {
-                activeToolIds.add(b.id)
-                toolStatuses.set(b.id, {
-                  name: b.name,
-                  status: formatToolStatus(b.name, b.input || b.arguments || {}),
-                  animation: getAnimationType(b.name),
-                })
-              }
+              activeToolIds.add(b.id)
+              toolStatuses.set(b.id, {
+                name: b.name,
+                status: formatToolStatus(b.name, b.input || b.arguments || {}),
+                animation: getAnimationType(b.name),
+              })
+              isGenerating = true
             }
           }
         }
 
-        const userContent = record.type === 'user' ? (record.message?.content ?? record.content) : null
-        if (Array.isArray(userContent)) {
-          for (const b of userContent as Array<{ type?: string; tool_use_id?: string }>) {
+        // Handle tool results in user content array (Anthropic format)
+        const isUser = record.type === 'user' ||
+          (record.type === 'message' && record.message?.role === 'user')
+        if (isUser && Array.isArray(msgContent)) {
+          for (const b of msgContent as Array<{ type?: string; tool_use_id?: string }>) {
             if ((b.type === 'tool_result' || b.type === 'toolResult') && b.tool_use_id) {
               activeToolIds.delete(b.tool_use_id)
               toolStatuses.delete(b.tool_use_id)
             }
           }
         }
+        // Handle toolResult as separate message (OpenClaw format)
         if (record.type === 'message' && record.message?.role === 'toolResult') {
           const toolCallId = record.message.toolCallId ?? record.message.tool_use_id
           if (toolCallId) {
@@ -210,11 +217,11 @@ async function findActiveSpawns(agentId: string): Promise<string[]> {
 
             if (isAssistant && Array.isArray(msgContent)) {
               for (const b of msgContent as Array<{
-                type: string; id?: string; name?: string; input?: Record<string, unknown>
+                type: string; id?: string; name?: string; input?: Record<string, unknown>; arguments?: Record<string, unknown>
               }>) {
                 if ((b.type === 'tool_use' || b.type === 'toolCall') &&
-                    b.name === 'sessions_spawn' && b.id && b.input?.agentId) {
-                  pendingSpawns.set(b.id, String(b.input.agentId))
+                    b.name === 'sessions_spawn' && b.id && (b.input?.agentId || b.arguments?.agentId)) {
+                  pendingSpawns.set(b.id, String(b.input?.agentId || b.arguments?.agentId))
                 }
               }
             }
