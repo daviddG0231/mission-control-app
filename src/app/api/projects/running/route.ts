@@ -50,15 +50,28 @@ export async function GET() {
             continue
           }
 
-          // Detect actual port from lsof (in case port changed, e.g. "port in use, trying another")
+          // Detect actual port: read from the dev server log first (most reliable),
+          // then fall back to expected port from tracking file
           let actualPort = data.port || 0
           try {
-            const { stdout } = await execAsync(
-              `/usr/sbin/lsof -p ${data.pid} -iTCP -sTCP:LISTEN -P -n 2>/dev/null | tail -1`,
-              { timeout: 3000 }
-            )
-            const portMatch = stdout.match(/:(\d+)\s/)
-            if (portMatch) actualPort = parseInt(portMatch[1], 10)
+            const logFile = path.join(data.projectPath, '.dev-server.log')
+            if (existsSync(logFile)) {
+              const logContent = readFileSync(logFile, 'utf-8')
+              // Match common dev server port patterns
+              const portPatterns = [
+                /localhost:(\d+)/,           // Expo, Vite, Next.js
+                /Network:.*:(\d+)/,          // Vite network URL
+                /on port (\d+)/i,            // generic
+                /http:\/\/[\d.]+:(\d+)/,     // any IP:port
+              ]
+              for (const pattern of portPatterns) {
+                const match = logContent.match(pattern)
+                if (match) {
+                  actualPort = parseInt(match[1], 10)
+                  break
+                }
+              }
+            }
           } catch {}
 
           if (actualPort > 0 && !seenPorts.has(actualPort)) {
