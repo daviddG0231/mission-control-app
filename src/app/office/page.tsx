@@ -393,7 +393,9 @@ export default function OfficePage() {
     const win = iframeRef.current?.contentWindow
     if (!win) return
 
-    const mainAgents = agents.filter((a) => !a.isSubagent)
+    // Only show agents that are actively working (typing/reading/waiting)
+    // Idle agents don't appear in the office — cleaner view
+    const mainAgents = agents.filter((a) => !a.isSubagent && a.status !== 'idle')
     const currentIds = new Set(mainAgents.map((a) => a.id))
     const idMap = agentIdMapRef.current
     const prevIds = prevAgentIdsRef.current
