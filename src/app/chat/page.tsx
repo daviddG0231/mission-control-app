@@ -23,10 +23,13 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [typing, setTyping] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prevMsgCountRef = useRef(0)
 
   // Load agents
   useEffect(() => {
@@ -36,27 +39,66 @@ export default function ChatPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  // Load chat history when agent selected
-  const loadHistory = useCallback(async (agentId: string) => {
-    setLoadingHistory(true)
+  // Load chat history
+  const loadHistory = useCallback(async (agentId: string, silent = false) => {
+    if (!silent) setLoadingHistory(true)
     try {
       const res = await fetch(`/api/chat?agentId=${agentId}`)
       const data = await res.json()
-      setMessages(data.messages || [])
-    } catch {}
-    setLoadingHistory(false)
+      const newMsgs: ChatMessage[] = data.messages || []
+      
+      setMessages(newMsgs)
+      
+      // If we got a new assistant message, stop typing indicator
+      if (newMsgs.length > prevMsgCountRef.current) {
+        const lastMsg = newMsgs[newMsgs.length - 1]
+        if (lastMsg?.role === 'assistant') {
+          setTyping(false)
+          stopPolling()
+        }
+      }
+      prevMsgCountRef.current = newMsgs.length
+      
+      // If agent is generating, show typing
+      if (data.isGenerating) {
+        setTyping(true)
+      }
+    } catch { /* ignore */ }
+    if (!silent) setLoadingHistory(false)
   }, [])
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+  }, [])
+
+  const startPolling = useCallback((agentId: string) => {
+    stopPolling()
+    pollingRef.current = setInterval(() => {
+      loadHistory(agentId, true)
+    }, 3000)
+    // Auto-stop after 2 minutes
+    setTimeout(() => stopPolling(), 120000)
+  }, [loadHistory, stopPolling])
 
   useEffect(() => {
     if (selectedAgent) {
       loadHistory(selectedAgent.id)
     }
-  }, [selectedAgent, loadHistory])
+    return () => stopPolling()
+  }, [selectedAgent, loadHistory, stopPolling])
 
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, typing])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopPolling()
+  }, [stopPolling])
 
   // Send message
   const sendMessage = async () => {
@@ -64,9 +106,12 @@ export default function ChatPage() {
     const text = input.trim()
     setInput('')
     setSending(true)
+    setTyping(true)
 
     // Optimistic add
-    setMessages(prev => [...prev, { role: 'user', content: text, timestamp: Date.now() }])
+    const userMsg: ChatMessage = { role: 'user', content: text, timestamp: Date.now() }
+    setMessages(prev => [...prev, userMsg])
+    prevMsgCountRef.current += 1
 
     try {
       const res = await fetch('/api/chat', {
@@ -76,15 +121,15 @@ export default function ChatPage() {
       })
       const data = await res.json()
       if (!data.ok) {
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Error: ${data.error}`, timestamp: Date.now() }])
+        setTyping(false)
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.error}`, timestamp: Date.now() }])
       } else {
-        // Poll for response after a delay
-        setTimeout(() => loadHistory(selectedAgent.id), 3000)
-        setTimeout(() => loadHistory(selectedAgent.id), 8000)
-        setTimeout(() => loadHistory(selectedAgent.id), 15000)
+        // Start polling for the response
+        startPolling(selectedAgent.id)
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Failed to send`, timestamp: Date.now() }])
+      setTyping(false)
+      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Failed to send message', timestamp: Date.now() }])
     }
     setSending(false)
     inputRef.current?.focus()
@@ -107,7 +152,7 @@ export default function ChatPage() {
             Chat with Team
           </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Select an agent to start chatting
+            Select an agent to start a conversation
           </p>
         </div>
 
@@ -144,7 +189,7 @@ export default function ChatPage() {
       {/* Chat header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-card)]">
         <button
-          onClick={() => { setSelectedAgent(null); setMessages([]) }}
+          onClick={() => { setSelectedAgent(null); setMessages([]); stopPolling(); setTyping(false) }}
           className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" />
@@ -152,7 +197,20 @@ export default function ChatPage() {
         <div className="text-2xl">{selectedAgent.emoji}</div>
         <div className="flex-1">
           <div className="font-bold text-white text-sm">{selectedAgent.name}</div>
-          <div className="text-xs text-[var(--text-secondary)]">{selectedAgent.role || selectedAgent.id}</div>
+          <div className="text-xs text-[var(--text-secondary)]">
+            {typing ? (
+              <span className="text-[var(--accent)] flex items-center gap-1">
+                typing
+                <span className="inline-flex gap-0.5">
+                  <span className="w-1 h-1 rounded-full bg-[var(--accent)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-[var(--accent)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-[var(--accent)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </span>
+            ) : (
+              selectedAgent.role || selectedAgent.id
+            )}
+          </div>
         </div>
         <button
           onClick={() => loadHistory(selectedAgent.id)}
@@ -168,26 +226,43 @@ export default function ChatPage() {
           <div className="flex justify-center py-20">
             <RefreshCw className="w-5 h-5 text-[var(--accent)] animate-spin" />
           </div>
-        ) : messages.length === 0 ? (
+        ) : messages.length === 0 && !typing ? (
           <div className="text-center py-20">
             <div className="text-5xl mb-4">{selectedAgent.emoji}</div>
             <div className="text-[var(--text-secondary)] text-sm">
-              Start a conversation with {selectedAgent.name}
+              Send a message to start chatting with {selectedAgent.name}
+            </div>
+            <div className="text-xs text-[var(--text-secondary)] mt-2 opacity-60">
+              This will spawn {selectedAgent.name} as a sub-agent to respond
             </div>
           </div>
         ) : (
-          messages.map((msg, i) => (
-            <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-              <div className={cn(
-                'max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
-                msg.role === 'user'
-                  ? 'bg-[var(--accent)] text-black rounded-br-md'
-                  : 'bg-[var(--bg-card)] border border-[var(--border)] text-white rounded-bl-md',
-              )}>
-                <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+          <>
+            {messages.map((msg, i) => (
+              <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div className={cn(
+                  'max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+                  msg.role === 'user'
+                    ? 'bg-[var(--accent)] text-black rounded-br-md'
+                    : 'bg-[var(--bg-card)] border border-[var(--border)] text-white rounded-bl-md',
+                )}>
+                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+            {/* Typing indicator bubble */}
+            {typing && (
+              <div className="flex justify-start">
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl rounded-bl-md px-4 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[var(--text-secondary)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-[var(--text-secondary)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-[var(--text-secondary)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>

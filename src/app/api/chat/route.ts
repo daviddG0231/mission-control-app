@@ -1,13 +1,18 @@
 /**
- * Chat API — Create sessions, send messages, get history for agent chats.
+ * Chat API — Spawn agent sessions and send messages.
  * 
- * GET: List active chat sessions or get history for one
- * POST: Send a message to an agent (creates session if needed)
+ * GET ?agentId=X — get chat history for agent
+ * GET (no params) — list available agents
+ * POST { agentId, message } — spawn a one-shot task for the agent
+ * POST { sessionKey, message } — send follow-up to existing session
  */
 import { NextRequest, NextResponse } from 'next/server'
 import path from 'path'
 import fs from 'fs/promises'
 import { AGENTS_DIR, OPENCLAW_CONFIG } from '@/lib/paths'
+
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:18789'
+const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || ''
 
 interface AgentInfo {
   id: string
@@ -36,11 +41,13 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+  hasToolCalls?: boolean
 }
 
-async function getSessionHistory(agentId: string, limit = 50): Promise<ChatMessage[]> {
+async function getSessionHistory(agentId: string, limit = 50): Promise<{ messages: ChatMessage[], isGenerating: boolean }> {
   const sessionsDir = path.join(AGENTS_DIR, agentId, 'sessions')
   const messages: ChatMessage[] = []
+  let isGenerating = false
   
   try {
     const files = await fs.readdir(sessionsDir)
@@ -57,13 +64,19 @@ async function getSessionHistory(agentId: string, limit = 50): Promise<ChatMessa
       }
     }
     
-    if (!latestFile) return []
+    if (!latestFile) return { messages: [], isGenerating: false }
+    
+    // Check if agent is currently generating (file modified < 30s ago)
+    const stat = await fs.stat(path.join(sessionsDir, latestFile))
+    const ageMs = Date.now() - stat.mtimeMs
+    if (ageMs < 30000) {
+      isGenerating = true
+    }
     
     const content = await fs.readFile(path.join(sessionsDir, latestFile), 'utf-8')
     const lines = content.trim().split('\n').filter(Boolean)
     
-    // Parse last N messages
-    const startIdx = Math.max(0, lines.length - limit * 2)
+    const startIdx = Math.max(0, lines.length - limit * 3)
     for (let i = startIdx; i < lines.length; i++) {
       try {
         const record = JSON.parse(lines[i])
@@ -77,7 +90,7 @@ async function getSessionHistory(agentId: string, limit = 50): Promise<ChatMessa
             : Array.isArray(msgContent) 
               ? msgContent.filter((b: Record<string, string>) => b.type === 'text').map((b: Record<string, string>) => b.text).join('\n')
               : ''
-          if (text && !text.includes('[Internal task completion') && !text.includes('OpenClaw runtime context')) {
+          if (text && !text.includes('[Internal task completion') && !text.includes('OpenClaw runtime context') && !text.includes('heartbeat')) {
             messages.push({ role: 'user', content: text.slice(0, 2000), timestamp: record.timestamp || latestMtime })
           }
         }
@@ -88,7 +101,7 @@ async function getSessionHistory(agentId: string, limit = 50): Promise<ChatMessa
             : Array.isArray(msgContent)
               ? msgContent.filter((b: Record<string, string>) => b.type === 'text').map((b: Record<string, string>) => b.text).join('\n')
               : ''
-          if (text) {
+          if (text && text !== 'NO_REPLY' && text !== 'HEARTBEAT_OK') {
             messages.push({ role: 'assistant', content: text.slice(0, 2000), timestamp: record.timestamp || latestMtime })
           }
         }
@@ -96,58 +109,77 @@ async function getSessionHistory(agentId: string, limit = 50): Promise<ChatMessa
     }
   } catch { /* no sessions */ }
   
-  return messages.slice(-limit)
+  return { messages: messages.slice(-limit), isGenerating }
+}
+
+async function gatewayInvoke(tool: string, args: Record<string, unknown>, sessionKey?: string) {
+  const res = await fetch(`${GATEWAY_URL}/tools/invoke`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GATEWAY_TOKEN}`,
+    },
+    body: JSON.stringify({
+      tool,
+      args,
+      sessionKey: sessionKey || 'main',
+    }),
+    cache: 'no-store',
+  })
+  
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Gateway ${res.status}: ${text}`)
+  }
+  
+  const raw = await res.json()
+  if (raw?.result?.details) return raw.result.details
+  if (raw?.result?.content?.[0]?.text) {
+    try { return JSON.parse(raw.result.content[0].text) } catch { return { text: raw.result.content[0].text } }
+  }
+  return raw
 }
 
 export async function GET(request: NextRequest) {
   const agentId = request.nextUrl.searchParams.get('agentId')
   
   if (agentId) {
-    // Get chat history for specific agent
-    const history = await getSessionHistory(agentId)
-    return NextResponse.json({ messages: history })
+    const { messages, isGenerating } = await getSessionHistory(agentId)
+    return NextResponse.json({ messages, isGenerating })
   }
   
-  // List all agents available for chat
   const agents = await getAgentList()
   return NextResponse.json({ agents })
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { agentId, message } = await request.json()
+    const body = await request.json()
+    const { agentId, message } = body
     
     if (!agentId || !message) {
       return NextResponse.json({ error: 'agentId and message required' }, { status: 400 })
     }
     
-    const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:18789'
-    const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || ''
+    // Spawn a one-shot task for the agent via Patrick (builder)
+    // Patrick delegates to the agent using sessions_spawn with agentId
+    const result = await gatewayInvoke('sessions_spawn', {
+      task: message.trim(),
+      runtime: 'subagent',
+      mode: 'run',
+      agentId,
+      runTimeoutSeconds: 120,
+    }, 'agent:builder:main')
     
-    // Send message to the agent's session via gateway
-    const res = await fetch(`${GATEWAY_URL}/tools/invoke`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GATEWAY_TOKEN}`,
-      },
-      body: JSON.stringify({
-        tool: 'sessions_send',
-        args: {
-          sessionKey: `agent:${agentId}:main`,
-          message: message.trim(),
-        },
-      }),
-      cache: 'no-store',
-    })
-    
-    if (!res.ok) {
-      const text = await res.text()
-      return NextResponse.json({ error: `Gateway: ${text}` }, { status: 502 })
+    if (result?.error || result?.status === 'forbidden') {
+      return NextResponse.json({ error: result?.error?.message || result?.error || 'Spawn failed' }, { status: 400 })
     }
     
-    const result = await res.json()
-    return NextResponse.json({ ok: true, result })
+    return NextResponse.json({ 
+      ok: true, 
+      sessionKey: result?.childSessionKey || null,
+      runId: result?.runId || null,
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: msg }, { status: 502 })
