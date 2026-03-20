@@ -16,7 +16,7 @@ interface AgentConfig {
   reportingEnabled: boolean
 }
 
-const agentConfigs = {
+const agentConfigs: Record<string, AgentConfig> = {
   // Team Leaders
   dave: { agentId: 'dave', name: 'Dave', role: 'CTO & Engineering Lead', channel: 'engineering', reportingEnabled: true },
   bob: { agentId: 'bob', name: 'Bob', role: 'CDO & Product Lead', channel: 'product', reportingEnabled: true },
@@ -125,9 +125,10 @@ export class TeamSpawner {
       console.error('Team spawn failed:', error)
       
       // Notify of failure
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       await this.sendTeamMessage('ceo', 'Patrick',
         `❌ **TEAM SPAWN FAILED**: ${config.projectName}\n\n` +
-        `Error: ${error.message}\n\n` +
+        `Error: ${errorMessage}\n\n` +
         `Please retry or contact support.`,
         'update'
       )
@@ -245,7 +246,7 @@ export class TeamSpawner {
   }
 
   private getTeamWorkers(teamLeader: string): string[] {
-    const teams = {
+    const teams: Record<string, string[]> = {
       dave: ['mark', 'mickey', 'tommy', 'elliot'],
       bob: ['stuart', 'snoopy', 'bobby'], 
       bolt: ['rex', 'nova', 'garfield']

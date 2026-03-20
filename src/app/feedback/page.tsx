@@ -151,6 +151,13 @@ export default function FeedbackPage() {
     success: 'bg-[var(--success)]/20'
   }[color] || 'bg-[var(--text-secondary)]/20')
 
+  const getCategoryBorderClass = (color: string) => ({
+    danger: 'border-[var(--danger)]',
+    accent: 'border-[var(--accent)]',
+    warning: 'border-[var(--warning)]',
+    success: 'border-[var(--success)]'
+  }[color] || 'border-[var(--text-secondary)]')
+
   const StatCard = ({ category, count }: { category: keyof typeof CATEGORY_CONFIG; count: number }) => {
     const config = CATEGORY_CONFIG[category]
     const Icon = config.icon
@@ -253,7 +260,7 @@ export default function FeedbackPage() {
                     className={`
                       p-3 rounded-lg border transition-all text-left
                       ${isSelected 
-                        ? `border-[var(--${config.color})] ${getCategoryBgClass(config.color)}` 
+                        ? `${getCategoryBorderClass(config.color)} ${getCategoryBgClass(config.color)}` 
                         : 'border-[var(--border)] hover:border-[var(--text-secondary)]'
                       }
                     `}
