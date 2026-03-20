@@ -422,7 +422,7 @@ export default function PeoplePage() {
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder={form.type === 'ai' ? 'e.g. Bolt ⚡' : 'e.g. John'}
+                  placeholder={form.type === 'ai' ? 'e.g. Emma 🌙' : 'e.g. John'}
                   className="w-full px-3 py-2 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] text-white placeholder:text-[var(--text-secondary)] text-sm focus:outline-none focus:border-[var(--accent)]"
                 />
               </div>

@@ -32,6 +32,7 @@ import {
   Coins,
   Play,
   KeyRound,
+  Sparkles,
 } from 'lucide-react'
 
 const NAV_SECTIONS = [
@@ -52,6 +53,7 @@ const NAV_SECTIONS = [
       { label: 'Projects', href: '/projects', icon: FolderOpen },
       { label: 'Code Review', href: '/review', icon: GitPullRequestDraft },
       { label: 'Memory', href: '/memory', icon: Brain },
+      { label: 'Patrick Brain', href: '/brain', icon: Sparkles },
       { label: 'Docs', href: '/docs', icon: BookOpen },
     ],
   },

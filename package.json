@@ -11,13 +11,13 @@
     "react-dom": "^18"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3333",
     "build": "next build",
     "tauri": "tauri",
     "tauri:build": "tauri build",
     "tauri:dev": "tauri dev",
     "build:office": "cd pixel-agents/webview-ui && npm install && npm run build && mkdir -p ../../public/office-view && cp -r ../dist/webview/* ../../public/office-view/",
-    "start": "next start",
+    "start": "next start -p 3333",
     "lint": "next lint"
   },
   "devDependencies": {

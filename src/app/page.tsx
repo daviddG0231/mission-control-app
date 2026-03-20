@@ -60,6 +60,24 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="flex gap-4 mb-6">
+        <Link
+          href="/team-spawn"
+          className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-xl hover:from-blue-700 hover:to-purple-700 transition flex items-center justify-center gap-3"
+        >
+          <Zap className="w-5 h-5" />
+          <span className="font-medium">Spawn Autonomous Team</span>
+        </Link>
+        <Link
+          href="/team-chat" 
+          className="flex-1 bg-gradient-to-r from-green-600 to-teal-600 text-white p-4 rounded-xl hover:from-green-700 hover:to-teal-700 transition flex items-center justify-center gap-3"
+        >
+          <MessageSquare className="w-5 h-5" />
+          <span className="font-medium">Team Chat</span>
+        </Link>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[

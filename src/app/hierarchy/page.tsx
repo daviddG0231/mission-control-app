@@ -53,8 +53,8 @@ const ORG_TREE: AgentNode = {
     },
     {
       id: 'cbo',
-      name: 'Bolt',
-      emoji: '⚡',
+      name: 'Emma',
+      emoji: '🌙',
       role: 'CBO',
       title: 'Chief Business Officer',
       children: [

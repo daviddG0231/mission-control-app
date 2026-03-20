@@ -97,7 +97,13 @@ export async function POST(request: NextRequest) {
           if (deps?.vite && !deps?.next) {
             runCmd = 'npx vite --host'  // Vite: run directly, expose on LAN
           } else if (deps?.next) {
-            runCmd = 'npx next dev --hostname 0.0.0.0'  // Next.js: expose on LAN
+            // Use custom dev script if available, or default with LAN access
+            const scripts = pkgJson.scripts || {}
+            if (scripts.dev) {
+              runCmd = `npm run dev`  // Respect custom dev script (may have port)
+            } else {
+              runCmd = 'npx next dev --hostname 0.0.0.0'  // Default Next.js with LAN
+            }
           } else if (deps?.expo) {
             runCmd = 'npx expo start --lan'  // Expo: LAN mode
           } else {
@@ -142,7 +148,10 @@ export async function POST(request: NextRequest) {
         const logFile = path.join(projectPath, '.dev-server.log')
         // Write empty log file first so polling starts immediately
         writeFileSync(logFile, '')
-        const bgCmd = `cd "${projectPath}" && PATH="${shellPath}" nohup ${runCmd} > "${logFile}" 2>&1 & echo $!`
+        
+        // Set explicit port in environment to avoid conflicts with Mission Control (port 3005)
+        const portEnv = expectedPort > 0 ? `PORT=${expectedPort} ` : ''
+        const bgCmd = `cd "${projectPath}" && PATH="${shellPath}" ${portEnv}nohup ${runCmd} > "${logFile}" 2>&1 & echo $!`
         const { stdout: pidOut } = await execAsync(bgCmd, { shell: '/bin/zsh', timeout: 10000 })
         const pid = parseInt(pidOut.trim().split('\n').pop() || '0', 10)
 
